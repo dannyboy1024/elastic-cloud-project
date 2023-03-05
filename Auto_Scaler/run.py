@@ -4,13 +4,7 @@ import boto3
 from datetime import datetime, timedelta
 import sched
 import time
-
-autoScaler.run('0.0.0.0', 5001, debug=False)
-#
-# s3client = boto3.client('s3', region_name='us-east-1')
-# s3resource = boto3.resource('s3', region_name='us-east-1')
-#
-# bucketName = "ece1779-wkx-test-bucket"
+import json
 
 cloudwatch = boto3.client('cloudwatch')
 # TODO：这些配置信息应该是danny在写的时候会设置的 我需要知道
@@ -35,7 +29,18 @@ poolConfig = {
 }
 mode = 'auto'
 
+@autoScaler.route('/', methods = ['GET'])
+def hello():
+    value = "wkx"
+    response = autoScaler.response_class(
+        response=json.dumps(value),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
 #TODO：路径分配
+@autoScaler.route('/autoScalarConfig', methods = ['POST'])
 def autoScalarConfig():
     #config = request.args.get('config')
     config = {}
@@ -97,6 +102,4 @@ def main(inc=60):
         s.enter(0, 0, perform, (inc,))
         s.run()
 
-
-if __name__ == '__main__':
-    main()
+autoScaler.run(debug=True)
