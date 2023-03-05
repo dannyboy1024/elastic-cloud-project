@@ -2,7 +2,9 @@
 from app import autoScaler
 import boto3
 from datetime import datetime, timedelta
-import sys
+import sched
+import time
+
 autoScaler.run('0.0.0.0', 5001, debug=False)
 #
 # s3client = boto3.client('s3', region_name='us-east-1')
@@ -11,7 +13,7 @@ autoScaler.run('0.0.0.0', 5001, debug=False)
 # bucketName = "ece1779-wkx-test-bucket"
 
 cloudwatch = boto3.client('cloudwatch')
-#TODO：这些配置信息应该是danny在写的时候会设置的 我需要知道
+# TODO：这些配置信息应该是danny在写的时候会设置的 我需要知道
 missRateConfig = {
     'metricName': '',
     'namespace': '',
@@ -31,7 +33,19 @@ thresholdAndRatio = {
 poolConfig = {
     'size': 2,
 }
+mode = 'auto'
 
+#TODO：路径分配
+def autoScalarConfig():
+    #config = request.args.get('config')
+    config = {}
+    #TODO:对missRateConfig的写入
+    operateMode = config.get('mode')
+    global mode
+    if operateMode == 'manual':
+        mode = 'manual'
+    elif operateMode == 'auto':
+        mode = 'auto'
 
 # Monitor miss rate through AWS CloudWatch API(every 1 minute)
 # If the missRate is lower or higher than the min or max threshold, call resizeMemPool func
@@ -62,10 +76,27 @@ def resizeMemPool(resizeRatio: float):
     """
     print('Beginning changing the pool size by ratio', resizeRatio)
     size = poolConfig.get('size') * resizeRatio
-    if size > thresholdAndRatio.get('max') or  size < thresholdAndRatio.get('min'):
+    if size > thresholdAndRatio.get('max') or size < thresholdAndRatio.get('min'):
         print('can not change the pool size, because it already hit the threshold')
     else:
-        #TODO: 回写size到pool的配置中，这个看是单独命名一个config文件，大家统一从里面操作？
+        # TODO: 回写size到pool的配置中，这个看是单独命名一个config文件，大家统一从里面操作？
         pass
 
 
+s = sched.scheduler(time.time, time.sleep)
+
+
+# run the monitor function every 60 seconds
+def perform(inc):
+    s.enter(inc, 0, perform, (inc,))
+    monitorMissRate()
+
+
+def main(inc=60):
+    if mode == 'auto':
+        s.enter(0, 0, perform, (inc,))
+        s.run()
+
+
+if __name__ == '__main__':
+    main()
