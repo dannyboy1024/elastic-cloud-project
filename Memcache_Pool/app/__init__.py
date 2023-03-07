@@ -101,46 +101,44 @@ class memcache_pool_tracking:
                 del self.all_keys_with_node[key]
 
     def manual_change(self, change):
-        if self.scaling_mode == "auto":
-            self.scaling_mode = "manual"
-            if change == "grow" and self.num_active_instances < 8:
-                new_index = self.num_active_instances
-                new_instance = self.available_instances[new_index]
-                self.active_instances[new_instance] = self.instances_ip[new_instance]
-                self.num_active_instances += 1
-                self.rebalance_nodes()
-            elif change == "shrink" and self.num_active_instances > 1:
-                shrink_index = self.num_active_instances - 1
-                shrink_instance = self.available_instances[shrink_index]
-                del self.active_instances[shrink_instance]
-                self.num_active_instances -= 1
-                self.rebalance_nodes()
+        self.scaling_mode = "manual"
+        if change == "grow" and self.num_active_instances < 8:
+            new_index = self.num_active_instances
+            new_instance = self.available_instances[new_index]
+            self.active_instances[new_instance] = self.instances_ip[new_instance]
+            self.num_active_instances += 1
+            self.rebalance_nodes()
+        elif change == "shrink" and self.num_active_instances > 1:
+            shrink_index = self.num_active_instances - 1
+            shrink_instance = self.available_instances[shrink_index]
+            del self.active_instances[shrink_instance]
+            self.num_active_instances -= 1
+            self.rebalance_nodes()
     
     def auto_change(self, change): 
-        if self.scaling_mode == "manual": 
-            self.scaling_mode = "auto"
-            if change == "grow" and self.num_active_instances < 8:
-                new_num_instance = int(self.num_active_instances * self.auto_expand)
-                if new_num_instance != self.num_active_instances:
-                    if new_num_instance >= 8:
-                        new_num_instance = 8
-                    for instance_num in range(new_num_instance-self.num_active_instances):
-                        new_index = self.num_active_instances + instance_num
-                        new_instance = self.available_instances[new_index]
-                        self.active_instances[new_instance] = self.instances_ip[new_instance]
-                    self.num_active_instances = new_num_instance
-                    self.rebalance_nodes()
-            elif change == "shrink" and self.num_active_instances > 1:
-                new_num_instance = int(self.num_active_instances * self.auto_shrink)
-                if new_num_instance != self.num_active_instances:
-                    if new_num_instance <= 1:
-                        new_num_instance = 1
-                    for instance_num in range(self.num_active_instances-new_num_instance):
-                        shrink_index = self.num_active_instances - 1 - instance_num
-                        shrink_instance = self.available_instances[shrink_index]
-                        del self.active_instances[shrink_instance]
-                    self.num_active_instances = new_num_instance
-                    self.rebalance_nodes()
+        self.scaling_mode = "auto"
+        if change == "grow" and self.num_active_instances < 8:
+            new_num_instance = int(self.num_active_instances * self.auto_expand)
+            if new_num_instance != self.num_active_instances:
+                if new_num_instance >= 8:
+                    new_num_instance = 8
+                for instance_num in range(new_num_instance-self.num_active_instances):
+                    new_index = self.num_active_instances + instance_num
+                    new_instance = self.available_instances[new_index]
+                    self.active_instances[new_instance] = self.instances_ip[new_instance]
+                self.num_active_instances = new_num_instance
+                self.rebalance_nodes()
+        elif change == "shrink" and self.num_active_instances > 1:
+            new_num_instance = int(self.num_active_instances * self.auto_shrink)
+            if new_num_instance != self.num_active_instances:
+                if new_num_instance <= 1:
+                    new_num_instance = 1
+                for instance_num in range(self.num_active_instances-new_num_instance):
+                    shrink_index = self.num_active_instances - 1 - instance_num
+                    shrink_instance = self.available_instances[shrink_index]
+                    del self.active_instances[shrink_instance]
+                self.num_active_instances = new_num_instance
+                self.rebalance_nodes()
 
 
 

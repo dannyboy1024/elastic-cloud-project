@@ -2,6 +2,7 @@
 from flask import render_template, url_for, request
 from app import manager
 from flask import json
+from collections import OrderedDict
 import boto3
 from moto import mock_s3
 from pathlib import Path
@@ -20,7 +21,8 @@ rds_client = None
 
 def provision_aws():
     s3client = boto3.client('s3', region_name='us-east-1')
-    rds_client = boto3.client('s3', region_name='us-east-1')
+    rds_client = boto3.client('rds', region_name='us-east-1')
+    print("Provision done")
 
 #@mock_s3
 def test_bucket():
@@ -57,7 +59,6 @@ def test_bucket():
     response = s3client.list_objects_v2(Bucket=bucket_name)
     print(response)
 
-
 def test_hash():
     hash_result = hashlib.md5("test3.txt".encode())
     hash_result_hex_str = hash_result.hexdigest()
@@ -69,6 +70,7 @@ def test_hash():
     print(hex(hash_result_hex))
 
 #test_bucket()
+provision_aws()
 test_hash()
 
 @manager.route('/')
@@ -76,7 +78,7 @@ def main():
     return render_template("main.html")
 
 @manager.route('/api/upload', methods=['POST'])
-def uploadToDB():
+def upload():
     """
     Upload the key to the database
     Store the value as a file in the local file system, key as filename
@@ -91,9 +93,8 @@ def uploadToDB():
         'key': key,
         'value': encodedImage
     }
-
-    key = request.args.get('key')
-    value = request.args.get('value')
+    requests.post(memcache_pool_url + '/put', params=requestJson)
+    value = encodedImage
     filename  = request.args.get('name')
     full_file_path = os.path.join(os_file_path, filename)
     if os.path.isfile(full_file_path):
@@ -102,11 +103,6 @@ def uploadToDB():
         fp.write(value)
     s3client.upload_file(full_file_path, bucket_name, filename)
     #pending saving to rds
-
-    #if db.readFileInfo(key) == None:
-    #    db.insertFileInfo(FILEINFO(key, filename))
-    #else:
-    #    db.updFileInfo(FILEINFO(key, filename))
 
     response = manager.response_class(
         response=json.dumps(full_file_path),
@@ -122,11 +118,10 @@ def getFromS3():
     Fetch the value (file, or image) from the file system given a key
     key: string
     """
-
     key = request.args.get('key')
     #fileInfo = db.readFileInfo(key)
     #pending rds getting filename
-    filename  = request.args.get('name')
+    filename = request.args.get('name')
     full_file_path = os.path.join(os_file_path, filename)
 
     s3client.download_file(bucket_name, filename, full_file_path)
@@ -147,6 +142,55 @@ def getFromS3():
         )
 
     return response
+
+@manager.route('/api/key/<key_value>', methods=['POST'])
+def retrieve(key_value):
+    # retrieve image
+    requestJson = {
+        'key': key_value
+    }
+    res = requests.post(memcache_pool_url + '/key/<key_value>', params=requestJson)
+    if res.status_code == 400:
+        # cache misses or do not use cache, query db
+        print('cache misses or cache not used, query db')
+        res = requests.post(manager_url + '/getFromS3', params=requestJson)
+        if res.status_code == 400:
+            resp = OrderedDict()
+            resp["success"] = "false"
+            resp["error"] = {
+                "code": 400,
+                "message": "Target file is not found because the given key is not found in database."
+            }
+            response = manager.response_class(
+                response=json.dumps(resp),
+                status=200,
+                mimetype='application/json'
+            )
+        else:
+            content = base64.b64decode(res.content)
+            resp = OrderedDict()
+            resp["success"] = "true"
+            resp["key"] = key_value
+            resp["content"] = bytes.decode(content)
+            response = manager.response_class(
+                response=json.dumps(resp),
+                status=200,
+                mimetype='application/json'
+            )
+        return response
+    else:
+        print('cache success')
+        content = base64.b64decode(res.content)
+        resp = OrderedDict()
+        resp["success"] = "true"
+        resp["key"] = key_value
+        resp["content"] = bytes.decode(content)
+        response = application.response_class(
+            response=json.dumps(resp),
+            status=200,
+            mimetype='application/json'
+        )
+        return response
 
 @manager.route('/api/delete_all', methods=['POST'])
 def delete_all():
@@ -179,6 +223,44 @@ def clear_memcache():
     requests.post(memcache_pool_url + '/clear')
     resp = {
         "success" : "true"
+    }
+    response = manager.response_class(
+        response=json.dumps(resp),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+@manager.route('/api/configure_cache', methods=['POST'])
+def configure_memcache():
+    pass
+
+@manager.route('/api/getNumNodes', methods=['POST'])
+def getNumNodes_Manager():
+    res = requests.post(memcache_pool_url + '/getNumNodes')
+    numNodes = res.content
+    resp = {
+        "success" : "true", 
+        "numNodes": numNodes
+    }
+    response = manager.response_class(
+        response=json.dumps(resp),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+@manager.route('/api/getRate', methods=['POST'])
+def getRate():
+    pass
+
+@manager.route('/api/list_keys', methods=['POST'])
+def list_keys():
+    res = requests.post(memcache_pool_url + '/all_keys')
+    all_keys = res.content
+    resp = {
+        "success" : "true", 
+        "keys": all_keys
     }
     response = manager.response_class(
         response=json.dumps(resp),

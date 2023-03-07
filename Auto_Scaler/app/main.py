@@ -5,8 +5,13 @@ import sched
 import time
 from main import webapp
 from ..app import autoScaler
+import requests
 
 cloudwatch = boto3.client('cloudwatch')
+manager_url = 'http://127.0.0.1:5000'
+memcache_pool_url = 'http://127.0.0.1:5002'
+autoscaler_url = 'http://127.0.0.1:5003'
+
 # TODO：这些配置信息应该是danny在写的时候会设置的 我需要知道
 missRateConfig = {
     'metricName': '',
@@ -79,7 +84,16 @@ def resizeMemPool(resizeRatio: float):
         print('can not change the pool size, because it already hit the threshold')
     else:
         # TODO: 回写size到pool的配置中，这个看是单独命名一个config文件，大家统一从里面操作？
-        pass
+        if resizeRatio > 1:
+            requestJson = {
+                'change': 'grow'
+            }
+            requests.post(memcache_pool_url + '/auto_change', params=requestJson)
+        else:
+            requestJson = {
+                'change': 'shrink'
+            }
+            requests.post(memcache_pool_url + '/auto_change', params=requestJson)
 
 
 s = sched.scheduler(time.time, time.sleep)

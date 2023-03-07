@@ -35,32 +35,20 @@ def getImage(key_value):
     res = requests.post(url + '/get', params=requestJson)
 
     if res.status_code == 400:
-        content = res.json()
         response = memcachePool.response_class(
-            response=json.dumps({
-                "success": "false",
-                "error": {
-                    "code": 400,
-                    "message": content
-                    }
-            }),
-            status=200,
+            response=json.dumps("Not in cache"),
+            status=400,
             mimetype='memcachePool/json'
         )
-        return response
     else:
         print('cache success')
-        content = base64.b64decode(res.content)
+        value = res.content
         response = memcachePool.response_class(
-            response=json.dumps(json.dumps({
-                    "success": "true",
-                    "key": key_value,
-                    "content": bytes.decode(content)
-                }),),
+            response=json.dumps(value),
             status=200,
             mimetype='memcachePool/json'
         )
-        return response
+    return response
 
 
 @memcachePool.route('/put', methods=['POST'])
@@ -70,13 +58,11 @@ def put():
     key: string
     value: string (For images, base64 encoded string)
     """
-    key = request.form.get('key')
-    image = request.files.get('file')
-    imageBytes = image.read()
-    encodedImage = base64.b64encode(str(imageBytes).encode())
+    key = request.args.get('key')
+    value = request.args.get('value')
     requestJson = {
         'key': key,
-        'value': encodedImage
+        'value': value
     }
     cache_partition = check_partition(key)
     node_num = cache_partition % memcache_pool_tracker.num_active_instances
@@ -84,16 +70,44 @@ def put():
     node_ip = memcache_pool_tracker.instances_ip[node_instance]
     url = 'http://'+str(node_ip)+':5000'
     res = requests.post(url + '/put', params=requestJson)
+    if res.status_code == 200:
+        if key not in memcache_pool_tracker.all_keys_with_node:
+            memcache_pool_tracker.all_keys_with_node[key] = node_num
+            memcache_pool_tracker.num_items += 1
+        response = memcachePool.response_class(
+            response=json.dumps("OK"),
+            status=200,
+            mimetype='application/json'
+        )
+    else:
+        response = memcachePool.response_class(
+            response=json.dumps("Size too big"),
+            status=400,
+            mimetype='application/json'
+        )
+    return response
 
-    resp = OrderedDict([("success", "true"), ("key", [key])])
+@memcachePool.route('/manual_change', methods=['POST'])
+def manual_change():
+    change = request.args.get('change')
+    memcache_pool_tracker.manual_change(change)
     response = memcachePool.response_class(
-        response=json.dumps(resp),
+        response=json.dumps("OK"),
         status=200,
         mimetype='application/json'
     )
     return response
 
-
+@memcachePool.route('/auto_change', methods=['POST'])
+def auto_change():
+    change = request.args.get('change')
+    memcache_pool_tracker.auto_change(change)
+    response = memcachePool.response_class(
+        response=json.dumps("OK"),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
 
 @memcachePool.route('/clear', methods=['POST'])
 def clear():
@@ -114,3 +128,22 @@ def clear():
     )
     return response
 
+@memcachePool.route('/getNumNodes', methods=['POST'])
+def getNumNodes():
+    numNodes = memcache_pool_tracker.num_active_instances
+    response = memcachePool.response_class(
+        response=json.dumps(numNodes),
+        status=200,
+        mimetype='memcachePool/json'
+    )
+    return response
+
+@memcachePool.route('/all_keys', methods=['POST'])
+def list_all_keys():
+    all_keys = memcache_pool_tracker.all_keys_with_node.keys()
+    response = memcachePool.response_class(
+        response=json.dumps(all_keys),
+        status=200,
+        mimetype='memcachePool/json'
+    )
+    return response
