@@ -143,8 +143,58 @@ def getFromS3():
 
     return response
 
+@manager.route('/api/getImage', methods=['POST'])
+def getImage():
+    # retrieve image
+    key = request.form.get('key')
+    requestJson = {
+        'key': key
+    }
+    res = requests.post(memcache_pool_url + '/key/<key_value>', params=requestJson)
+    if res.status_code == 400:
+        # cache misses or do not use cache, query db
+        print('cache misses or cache not used, query db')
+        res = requests.post(manager_url + '/getFromS3', params=requestJson)
+        if res.status_code == 400:
+            resp = OrderedDict()
+            resp["success"] = "false"
+            resp["error"] = {
+                "code": 400,
+                "message": "Target file is not found because the given key is not found in database."
+            }
+            response = manager.response_class(
+                response=json.dumps(resp),
+                status=400,
+                mimetype='application/json'
+            )
+        else:
+            content = base64.b64decode(res.content)
+            resp = OrderedDict()
+            resp["success"] = "true"
+            resp["key"] = key_value
+            resp["content"] = bytes.decode(content)
+            response = manager.response_class(
+                response=json.dumps(resp),
+                status=200,
+                mimetype='application/json'
+            )
+        return response
+    else:
+        print('cache success')
+        content = base64.b64decode(res.content)
+        resp = OrderedDict()
+        resp["success"] = "true"
+        resp["key"] = key_value
+        resp["content"] = bytes.decode(content)
+        response = manager.response_class(
+            response=json.dumps(resp),
+            status=200,
+            mimetype='application/json'
+        )
+        return response
+
 @manager.route('/api/key/<key_value>', methods=['POST'])
-def retrieve(key_value):
+def retrieve_autotest(key_value):
     # retrieve image
     requestJson = {
         'key': key_value
@@ -254,7 +304,7 @@ def configure_memcache():
             return response
     if 'numNodes' in request.args: 
         requestJson["numNodes"] = int(request.args.get('numNodes'))
-        if requestJson["numNodes"] > 8 and requestJson["numNodes"] < 1: 
+        if requestJson["numNodes"] > 8 or requestJson["numNodes"] < 1: 
             resp = {
                 "success": "false",
                 "error": {
