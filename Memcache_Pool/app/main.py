@@ -141,9 +141,18 @@ def getNumNodes():
 @memcachePool.route('/all_keys', methods=['POST'])
 def list_all_keys():
     all_keys = memcache_pool_tracker.all_keys_with_node.keys()
+    all_keys_response = list(all_keys)
+    resp = {
+        "success" : "true", 
+        "all_keys": all_keys_response
+    }
     response = memcachePool.response_class(
-        response=json.dumps(all_keys),
+        response=json.dumps(resp),
         status=200,
         mimetype='memcachePool/json'
     )
     return response
+
+@memcachePool.route('/configure', methods=['POST'])
+def configure():
+    pass
