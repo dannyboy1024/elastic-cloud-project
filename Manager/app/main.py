@@ -94,7 +94,8 @@ def upload():
     encodedImage = base64.b64encode(str(imageBytes).encode())
     requestJson = {
         'key': key,
-        'value': encodedImage
+        'value': encodedImage, 
+        #'size'
     }
     requests.post(memcache_pool_url + '/put', params=requestJson)
     value = encodedImage
@@ -108,13 +109,13 @@ def upload():
     
     # pending saving to rds
     if db.readFileInfo(key) == None:
-        db.insertFileInfo(FILEINFO(key, full_file_path))
+        db.insertFileInfo(FILEINFO(key, filename))
     else:
-        db.updFileInfo(FILEINFO(key, full_file_path))
+        db.updFileInfo(FILEINFO(key, filename))
     
 
     response = manager.response_class(
-        response=json.dumps(full_file_path),
+        response=json.dumps(filename),
         status=200,
         mimetype='application/json'
     )
@@ -131,11 +132,10 @@ def getFromS3():
 
     #pending rds getting filename
     fileInfo = db.readFileInfo(key)
-
-    filename = request.args.get('name')
-    full_file_path = os.path.join(os_file_path, filename)
+    filename = fileInfo.location
     checkFile = s3client.list_objects_v2(Bucket=bucket_name, Prefix=filename)
     if "Contents" in checkFile:
+        full_file_path = os.path.join(os_file_path, filename)
         s3client.download_file(bucket_name, filename, full_file_path)
         value = Path(full_file_path).read_text()
         response = manager.response_class(
@@ -159,17 +159,17 @@ def getImage():
     requestJson = {
         'key': key
     }
-    res = requests.post(memcache_pool_url + '/key/<key_value>', params=requestJson)
+    res = requests.post(memcache_pool_url + '/getImage', params=requestJson)
     if res.status_code == 400:
-        # cache misses or do not use cache, query db
-        print('cache misses or cache not used, query db')
+        # cache misses, query AWS service
+        print('cache misses, query AWS service')
         res = requests.post(manager_url + '/getFromS3', params=requestJson)
         if res.status_code == 400:
             resp = OrderedDict()
             resp["success"] = "false"
             resp["error"] = {
                 "code": 400,
-                "message": "Target file is not found because the given key is not found in database."
+                "message": "Target file is not found because the given key is not found."
             }
             response = manager.response_class(
                 response=json.dumps(resp),
@@ -180,7 +180,7 @@ def getImage():
             content = base64.b64decode(res.content)
             resp = OrderedDict()
             resp["success"] = "true"
-            resp["key"] = key_value
+            resp["key"] = key
             resp["content"] = bytes.decode(content)
             response = manager.response_class(
                 response=json.dumps(resp),
@@ -193,7 +193,7 @@ def getImage():
         content = base64.b64decode(res.content)
         resp = OrderedDict()
         resp["success"] = "true"
-        resp["key"] = key_value
+        resp["key"] = key
         resp["content"] = bytes.decode(content)
         response = manager.response_class(
             response=json.dumps(resp),
@@ -210,15 +210,15 @@ def retrieve_autotest(key_value):
     }
     res = requests.post(memcache_pool_url + '/key/<key_value>', params=requestJson)
     if res.status_code == 400:
-        # cache misses or do not use cache, query db
-        print('cache misses or cache not used, query db')
+        # cache misses, query AWS service
+        print('cache misses, query AWS service')
         res = requests.post(manager_url + '/getFromS3', params=requestJson)
         if res.status_code == 400:
             resp = OrderedDict()
             resp["success"] = "false"
             resp["error"] = {
                 "code": 400,
-                "message": "Target file is not found because the given key is not found in database."
+                "message": "Target file is not found because the given key is not found."
             }
             response = manager.response_class(
                 response=json.dumps(resp),
@@ -372,7 +372,9 @@ def configure_memcache():
 @manager.route('/api/getNumNodes', methods=['POST'])
 def getNumNodes_Manager():
     res = requests.post(memcache_pool_url + '/getNumNodes')
-    numNodes = res.content
+    print(res.content)
+    json_response = res.json()
+    numNodes = json_response["numNodes"]
     resp = {
         "success" : "true", 
         "numNodes": numNodes

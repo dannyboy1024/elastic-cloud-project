@@ -71,7 +71,35 @@ class memcache_pool_tracking:
         self.auto_shrink = 0.5
         self.total_size = 0
         self.num_items = 0
+        self.num_hit_request = 0
+        self.num_miss_request = 0
     
+    def update_key_tracking(self):
+        all_key_with_node = {}
+        node_num = 0
+        for instance_id in self.active_instances:
+            instance_ip = self.instances_ip[instance_id]
+            instance_url = 'http://'+str(instance_ip)+':5000'
+            res = requests.post(instance_url + '/allKeyMemcache')
+            json_response = res.json()
+            keys = json_response["all_keys"]
+            if keys != []:
+                for key in keys:
+                    all_key_with_node[key] = node_num
+            node_num += 1
+        self.all_keys_with_node = all_key_with_node
+        self.num_items = len(self.all_key_with_node)
+    
+    def update_total_size(self):
+        total_size = 0
+        for instance_id in self.active_instances:
+            instance_ip = self.instances_ip[instance_id]
+            instance_url = 'http://'+str(instance_ip)+':5000'
+            res = requests.post(instance_url + '/getCurrentSize')
+            size = res.content
+            total_size += size
+        self.total_size = total_size
+
     def rebalance_nodes(self): 
         if self.all_keys_with_node != {}:
             for key in self.all_keys_with_node:
@@ -98,12 +126,22 @@ class memcache_pool_tracking:
                             'key': key,
                             'value': content
                         }
-                        requests.post(new_url + '/put', params=requestJson)
+                        res = requests.post(new_url + '/put', params=requestJson)
+                        if res.status_code == 400:
+                            self.all_keys_with_node[key] = -1
+
             keys_list = self.all_keys_with_node.keys()
             all_keys_list = list(keys_list)
             for key in all_keys_list:
                 if self.all_keys_with_node[key] == -1:
                     del self.all_keys_with_node[key]
+            self.num_items = len(self.all_key_with_node)
+            for instance_id in self.instances_ip:
+                if instance_id not in self.active_instances:
+                    instance_ip = self.instances_ip[instance_id]
+                    instance_url = 'http://'+str(instance_ip)+':5000'
+                    requests.post(instance_url + '/clear')
+            self.update_total_size()
 
     def mode_change(self, mode):
         self.scaling_mode = mode
@@ -129,6 +167,13 @@ class memcache_pool_tracking:
                 del self.active_instances[shrink_instance]
             self.num_active_instances = numNodes
             self.rebalance_nodes()
+        print(self.active_instances)
+    
+    def configureNodes(self, single_cache_configure):
+        for instance_id in self.active_instances:
+            instance_ip = self.instances_ip[instance_id]
+            instance_url = 'http://'+str(instance_ip)+':5000'
+            requests.post(instance_url + '/configureMemcache', params=single_cache_configure)
 
     def manual_change(self, change):
         self.scaling_mode = "manual"
