@@ -1,6 +1,6 @@
 
 from flask import render_template, url_for, request
-from app import manager
+from app import manager, db, FILEINFO
 from flask import json
 from collections import OrderedDict
 import boto3
@@ -10,6 +10,7 @@ import os
 import hashlib
 import base64
 import requests
+import plotly.graph_objs as go
 
 os_file_path = os.getcwd()
 bucket_name = 'ece1779-winter23-a2-bucket'
@@ -102,7 +103,13 @@ def upload():
     with open(full_file_path, 'w') as fp:
         fp.write(value)
     s3client.upload_file(full_file_path, bucket_name, filename)
-    #pending saving to rds
+    
+    # pending saving to rds
+    if db.readFileInfo(key) == None:
+        db.insertFileInfo(FILEINFO(key, full_file_path))
+    else:
+        db.updFileInfo(FILEINFO(key, full_file_path))
+    
 
     response = manager.response_class(
         response=json.dumps(full_file_path),
@@ -119,8 +126,10 @@ def getFromS3():
     key: string
     """
     key = request.args.get('key')
-    #fileInfo = db.readFileInfo(key)
+
     #pending rds getting filename
+    fileInfo = db.readFileInfo(key)
+
     filename = request.args.get('name')
     full_file_path = os.path.join(os_file_path, filename)
 
@@ -201,7 +210,10 @@ def delete_all():
     response = s3client.list_objects_v2(Bucket=bucket_name)
     for obj in response['Contents']:
         s3client.delete_object(Bucket=bucket_name, Key=obj['Key'])
+    
     #pending removal from rds
+    db.delAllFileInfo()
+    
     requests.post(memcache_pool_url + '/clear')
     resp = {
         "success" : "true"
@@ -268,3 +280,83 @@ def list_keys():
         mimetype='application/json'
     )
     return response
+
+#####################################
+##    Manager Front end routes     ##
+#####################################
+@manager.route('/displayCharts', methods=['GET'])
+def displayCharts():
+    
+    # TODO: get stats from cloudwatch. Hardcoded so far #
+    missRates = [0.5 for i in range(30)]
+    hitRates = [0.5 for i in range(30)]
+    totalNumCacheItems = [i for i in range(30)]
+    totalSizeCacheItems = [i * 1024 * 1024 for i in range(30)]
+    numRequestsServedPerMinute = [1 for i in range(30)]
+
+    # Create a list to store the Plotly chart objects
+    figs = []
+    x = [i for i in range(30)]
+    x_label = 'Time (Minutes)'
+    y_data = [missRates, hitRates, totalNumCacheItems, totalSizeCacheItems, numRequestsServedPerMinute]
+    chart_names = ['Miss Rates', 
+                   'Hit Rates', 
+                   'Total number of cache items', 
+                   'Total size of cache items', 
+                   'Number of requests / minute'
+                   ]
+
+    # Create a Plotly line chart for each set of x and y data
+    for y, name in zip(y_data, chart_names):
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name=name))
+        fig.update_layout(title=name, xaxis_title=x_label, yaxis_title=name, width=800, height=500)
+        figs.append(fig)
+
+    # Generate the HTML for each chart using Plotly's to_html() method
+    chart_html = []
+    for fig in figs:
+        chart_html.append(fig.to_html(full_html=False, include_plotlyjs=False))
+
+    # Wrap the HTML for each chart in a <div> tag with a unique ID
+    chart_divs = ['''
+        <head>
+            <title>Line Chart Example</title>
+            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+        </head>
+    ''']
+    for i, html in enumerate(chart_html):
+        chart_divs.append(f'<div id="chart{i+1}">{html}</div>')
+
+    # Combine the chart <div> tags into a single HTML string
+    html = ''.join(chart_divs)
+
+    # Return the HTML string
+    return html
+
+@manager.route('/configureCache', methods=['GET', 'POST'])
+def configureCache():
+    policies = ['Random Replacement', 'Least Recently Used']
+    return render_template('configureCache.html', policies=policies)
+
+@manager.route('/configureCachePoolSizingMode', methods=['GET', 'POST'])
+def configureCachePoolSizingMode():
+    dropdown_choices = ['Option 1', 'Option 2']
+    selected_option = None
+    show_inputs = False
+
+    if request.method == 'POST':
+        selected_option = request.form['configureCachePoolSizingMode']
+        show_inputs = (request.form['configureCachePoolSizingMode'] == 'Option 2')
+
+    return render_template('configureCachePoolSizingMode.html', dropdown_choices=dropdown_choices, selected_option=selected_option, show_inputs=show_inputs)
+
+@manager.route('/deleteAllData', methods=['GET', 'POST'])
+def deleteAllData():
+    ## delete all data ##
+    return
+
+@manager.route('/clearCache', methods=['POST'])
+def clearCache():
+    ## clear cache ##
+    return

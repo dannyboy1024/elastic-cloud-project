@@ -1,0 +1,34 @@
+<html>
+<head>
+    <title>Dropdown Example</title>
+</head>
+<body>
+    <form method="post" action="/configureCachePoolSizingMode">
+
+        <label for="configureCachePoolSizingMode">Choose another option:</label>
+        <select id="configureCachePoolSizingMode" name="configureCachePoolSizingMode">
+            <option value="Option 1">Option 1</option>
+            <option value="Option 2">Option 2</option>
+        </select>
+
+        {% if show_inputs %}
+            <br>
+
+            <label for="input1">Input 1:</label>
+            <input type="text" id="input1" name="input1"><br>
+
+            <label for="input2">Input 2:</label>
+            <input type="text" id="input2" name="input2"><br>
+
+            <label for="input3">Input 3:</label>
+            <input type="text" id="input3" name="input3"><br>
+
+            <label for="input4">Input 4:</label>
+            <input type="text" id="input4" name="input4"><br>
+
+        {% endif %}
+
+        <input type="submit" value="Submit">
+    </form>
+</body>
+</html>
