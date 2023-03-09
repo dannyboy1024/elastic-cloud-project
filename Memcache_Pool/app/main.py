@@ -36,13 +36,15 @@ def getImage():
     res = requests.post(url + '/get', params=requestJson)
 
     if res.status_code == 400:
+        memcache_pool_tracker.num_miss_request += 1
         response = memcachePool.response_class(
             response=json.dumps("Not in cache"),
             status=400,
             mimetype='memcachePool/json'
         )
     else:
-        print('cache success')
+        #print('cache success')
+        memcache_pool_tracker.num_hit_request += 1
         value = res.content
         response = memcachePool.response_class(
             response=json.dumps(value),
