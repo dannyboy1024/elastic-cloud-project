@@ -1,34 +1,83 @@
 <html>
 <head>
-    <title>Dropdown Example</title>
+    <title>Configure cache pool sizing mode</title>
+    <script>
+        function showParams() {
+            var mode = document.getElementById("mode");
+            var autoParams = document.getElementById("autoParams");
+            var manParams = document.getElementById("manParams");
+            if (mode.value === "auto") {
+                autoParams.style.display = "block";
+                manParams.style.display = "none";
+            } else {
+                manParams.style.display = "block";
+                autoParams.style.display = "none";
+            }
+        }
+        function decrement() {
+            var numNodesValue = document.getElementById("numNodesValue");
+            var currentValue = parseInt(numNodesValue.innerHTML);
+            if (currentValue > 1) {
+                numNodesValue.innerHTML = currentValue - 1;
+            }
+        }
+        function increment() {
+            var numNodesValue = document.getElementById("numNodesValue");
+            var currentValue = parseInt(numNodesValue.innerHTML);
+            if (currentValue < 8) {
+                numNodesValue.innerHTML = currentValue + 1;
+            }
+        }
+        function submitForm() {
+            var valueSpan = document.getElementById('numNodesValue');
+            var valueInput = document.getElementById('numNodes');
+            valueInput.value = valueSpan.innerText;
+            document.getElementById('pool').submit();
+        }
+	</script>
 </head>
 <body>
-    <form method="post" action="/configureCachePoolSizingMode">
+    <form id="pool" action="/api/configure_cache" method="get">
 
-        <label for="configureCachePoolSizingMode">Choose another option:</label>
-        <select id="configureCachePoolSizingMode" name="configureCachePoolSizingMode">
-            <option value="Option 1">Option 1</option>
-            <option value="Option 2">Option 2</option>
+        <label for="mode">Choose a resizing mode</label>
+        
+        <select id="mode" name="mode" onchange="showParams()">
+            <option value="manual">Manual</option>
+            <option value="auto">Automatic</option>
         </select>
 
-        {% if show_inputs %}
-            <br>
+        <div id="manParams" style="display: block;">
+            <button id="decr">-</button>
+            <span id="numNodesValue">{{numNodes}}</span>
+            <button id="incr">+</button>
+        </div>
+        <input type="hidden" name="numNodes" id="numNodes">
 
-            <label for="input1">Input 1:</label>
-            <input type="text" id="input1" name="input1"><br>
+        <div id="autoParams" style="display: none;">
+            <label for="maxMiss">Max Miss Rate threshold: </label>
+            <input type="text" id="maxMiss" name="maxMiss"><br>
+            <label for="minMiss">Min Miss Rate threshold: </label>
+            <input type="text" id="minMiss" name="minMiss"><br>
+            <label for="expRatio">Ratio by which to expand the pool: </label>
+            <input type="text" id="expRatio" name="expRatio"><br>
+            <label for="shrinkRatio">Ratio by which to shrink the pool: </label>
+            <input type="text" id="shrinkRatio" name="shrinkRatio"><br>
+        </div>
 
-            <label for="input2">Input 2:</label>
-            <input type="text" id="input2" name="input2"><br>
+        <button onclick="submitForm()" type="submit">Submit</button>
 
-            <label for="input3">Input 3:</label>
-            <input type="text" id="input3" name="input3"><br>
-
-            <label for="input4">Input 4:</label>
-            <input type="text" id="input4" name="input4"><br>
-
-        {% endif %}
-
-        <input type="submit" value="Submit">
     </form>
+    <script>
+        var decr = document.getElementById('decr');
+        decr.addEventListener('click', function(event) {
+            event.preventDefault(); // Prevent the form from being submitted
+            decrement();
+        });
+        var incr = document.getElementById('incr');
+        incr.addEventListener('click', function(event) {
+            event.preventDefault(); // Prevent the form from being submitted
+            increment();
+        });
+    </script>
 </body>
 </html>

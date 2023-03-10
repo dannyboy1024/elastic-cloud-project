@@ -45,13 +45,14 @@ class RDBMS:
             else:
                 print(err.msg)
 
-        ###### Commit the changes on the 3 tables and disconnct ###
+        ###### Commit the changes on the 3 tables and disconnct ######
         connection.commit()
         cursor.close()
         connection.close()
 
     def connect(self, db=None):
-        connection = mysql.connector.connect(host='database-1.cjh8iijvrxow.us-east-1.rds.amazonaws.com', user='admin', passwd='ece1779a2', database=db)
+        # connection = mysql.connector.connect(host='database-1.cjh8iijvrxow.us-east-1.rds.amazonaws.com', user='admin', passwd='ece1779a2', database=db)
+        connection = mysql.connector.connect(user='ECE1779', passwd='ECE1779_DB', database=db)
         cursor = connection.cursor()
         return connection, cursor
 

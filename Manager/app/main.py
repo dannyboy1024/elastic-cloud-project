@@ -1,5 +1,5 @@
 
-from flask import render_template, url_for, request
+from flask import render_template, url_for, request, session
 from app import manager, db, FILEINFO
 from flask import json
 from collections import OrderedDict
@@ -294,7 +294,7 @@ def clear_memcache():
     )
     return response
 
-@manager.route('/api/configure_cache', methods=['POST'])
+@manager.route('/api/configure_cache', methods=['GET', 'POST'])
 def configure_memcache():
     requestJson = {}
     if 'mode' in request.args: 
@@ -423,7 +423,7 @@ def list_keys():
     return response
 
 #####################################
-##    Manager Front end routes     ##
+##    Manager Front End Routes     ##
 #####################################
 @manager.route('/displayCharts', methods=['GET'])
 def displayCharts():
@@ -432,7 +432,7 @@ def displayCharts():
     missRates = [0.5 for i in range(30)]
     hitRates = [0.5 for i in range(30)]
     totalNumCacheItems = [i for i in range(30)]
-    totalSizeCacheItems = [i * 1024 * 1024 for i in range(30)]
+    totalSizeCacheItems = [i for i in range(30)]
     numRequestsServedPerMinute = [1 for i in range(30)]
 
     # Create a list to store the Plotly chart objects
@@ -443,7 +443,7 @@ def displayCharts():
     chart_names = ['Miss Rates', 
                    'Hit Rates', 
                    'Total number of cache items', 
-                   'Total size of cache items', 
+                   'Total size of cache items (MB)', 
                    'Number of requests / minute'
                    ]
 
@@ -477,27 +477,19 @@ def displayCharts():
 
 @manager.route('/configureCache', methods=['GET', 'POST'])
 def configureCache():
-    policies = ['Random Replacement', 'Least Recently Used']
-    return render_template('configureCache.html', policies=policies)
+    return render_template('configureCache.html')
 
 @manager.route('/configureCachePoolSizingMode', methods=['GET', 'POST'])
 def configureCachePoolSizingMode():
-    dropdown_choices = ['Option 1', 'Option 2']
-    selected_option = None
-    show_inputs = False
-
-    if request.method == 'POST':
-        selected_option = request.form['configureCachePoolSizingMode']
-        show_inputs = (request.form['configureCachePoolSizingMode'] == 'Option 2')
-
-    return render_template('configureCachePoolSizingMode.html', dropdown_choices=dropdown_choices, selected_option=selected_option, show_inputs=show_inputs)
+    # res = requests.post(memcache_pool_url + '/getNumNodes')
+    # numNodes = int(res.content)
+    numNodes = 1
+    return render_template('configureCachePoolSizingMode.html', numNodes = numNodes)
 
 @manager.route('/deleteAllData', methods=['GET', 'POST'])
 def deleteAllData():
-    ## delete all data ##
-    return
+    requests.post(memcache_pool_url + '/api/delete_all')
 
-@manager.route('/clearCache', methods=['POST'])
+@manager.route('/clearCache', methods=['GET', 'POST'])
 def clearCache():
-    ## clear cache ##
-    return
+    requests.post(memcache_pool_url + '/clear')
