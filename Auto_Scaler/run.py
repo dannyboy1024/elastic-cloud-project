@@ -7,7 +7,7 @@ import time
 import json
 
 cloudwatch = boto3.client('cloudwatch')
-# TODO：这些配置信息应该是danny在写的时候会设置的 我需要知道
+# TODO：这些配置信息应该是stephen在写的时候会设置的 我需要知道
 missRateConfig = {
     'metricName': '',
     'namespace': '',
@@ -29,17 +29,6 @@ poolConfig = {
 }
 mode = 'auto'
 
-@autoScaler.route('/', methods = ['GET'])
-def hello():
-    value = "wkx"
-    response = autoScaler.response_class(
-        response=json.dumps(value),
-        status=200,
-        mimetype='application/json'
-    )
-    return response
-
-#TODO：路径分配
 @autoScaler.route('/autoScalarConfig', methods = ['POST'])
 def autoScalarConfig():
     #config = request.args.get('config')

@@ -1,5 +1,5 @@
 from flask import render_template, url_for, request
-from app import memcachePool, memcache_pool_tracker, memcache_pool_tracking, provision_ec2, check_partition
+from Memcache_Pool.app import memcachePool, memcache_pool_tracker, memcache_pool_tracking, provision_ec2, check_partition
 from flask import json
 from collections import OrderedDict
 import base64
