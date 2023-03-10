@@ -18,16 +18,17 @@ provision_ec2()
 def main():
     return render_template("main.html")
 
-@memcachePool.route('/key/<key_value>', methods=['POST'])
-def getImage(key_value):
+@memcachePool.route('/getImage', methods=['POST'])
+def getImage():
     """
     Fetch the value from the memcache given a key
     key: string
     """
+    key = request.args.get('key')
     requestJson = {
-        'key': key_value
+        'key': key
     }
-    cache_partition = check_partition(key_value)
+    cache_partition = check_partition(key)
     node_num = cache_partition % memcache_pool_tracker.num_active_instances
     node_instance = memcache_pool_tracker.available_instances[node_num]
     node_ip = memcache_pool_tracker.instances_ip[node_instance]
@@ -35,16 +36,23 @@ def getImage(key_value):
     res = requests.post(url + '/get', params=requestJson)
 
     if res.status_code == 400:
+        memcache_pool_tracker.num_miss_request += 1
         response = memcachePool.response_class(
             response=json.dumps("Not in cache"),
             status=400,
             mimetype='memcachePool/json'
         )
     else:
-        print('cache success')
-        value = res.content
+        #print('cache success')
+        memcache_pool_tracker.num_hit_request += 1
+        json_response = res.json()
+        value = json_response["value"]
+        resp = {
+            "success" : "true", 
+            "value": value
+        }
         response = memcachePool.response_class(
-            response=json.dumps(value),
+            response=json.dumps(resp),
             status=200,
             mimetype='memcachePool/json'
         )
@@ -60,9 +68,11 @@ def put():
     """
     key = request.args.get('key')
     value = request.args.get('value')
+    imageSize = request.args.get('size')
     requestJson = {
         'key': key,
-        'value': value
+        'value': value, 
+        'size': imageSize
     }
     cache_partition = check_partition(key)
     node_num = cache_partition % memcache_pool_tracker.num_active_instances
@@ -71,17 +81,22 @@ def put():
     url = 'http://'+str(node_ip)+':5000'
     res = requests.post(url + '/put', params=requestJson)
     if res.status_code == 200:
-        if key not in memcache_pool_tracker.all_keys_with_node:
-            memcache_pool_tracker.all_keys_with_node[key] = node_num
-            memcache_pool_tracker.num_items += 1
+        memcache_pool_tracker.update_key_tracking()
+        memcache_pool_tracker.update_total_size()
+        resp = {
+            "success" : "true"
+        }
         response = memcachePool.response_class(
-            response=json.dumps("OK"),
+            response=json.dumps(resp),
             status=200,
             mimetype='application/json'
         )
     else:
+        resp = {
+            "success" : "false"
+        }
         response = memcachePool.response_class(
-            response=json.dumps("Size too big"),
+            response=json.dumps(resp),
             status=400,
             mimetype='application/json'
         )
@@ -91,8 +106,11 @@ def put():
 def manual_change():
     change = request.args.get('change')
     memcache_pool_tracker.manual_change(change)
+    resp = {
+        "success" : "true"
+    }
     response = memcachePool.response_class(
-        response=json.dumps("OK"),
+        response=json.dumps(resp),
         status=200,
         mimetype='application/json'
     )
@@ -102,8 +120,11 @@ def manual_change():
 def auto_change():
     change = request.args.get('change')
     memcache_pool_tracker.auto_change(change)
+    resp = {
+        "success" : "true"
+    }
     response = memcachePool.response_class(
-        response=json.dumps("OK"),
+        response=json.dumps(resp),
         status=200,
         mimetype='application/json'
     )
@@ -119,10 +140,14 @@ def clear():
         node_ip = memcache_pool_tracker.active_instances[id]
         url = 'http://'+str(node_ip)+':5000'
         requests.post(url + '/clear')
+    memcache_pool_tracker.all_keys_with_node = {}
     memcache_pool_tracker.total_size = 0
     memcache_pool_tracker.num_items = 0
+    resp = {
+        "success" : "true"
+    }
     response = memcachePool.response_class(
-        response=json.dumps("OK"),
+        response=json.dumps(resp),
         status=200,
         mimetype='memcachePool/json'
     )
@@ -131,8 +156,11 @@ def clear():
 @memcachePool.route('/getNumNodes', methods=['POST'])
 def getNumNodes():
     numNodes = memcache_pool_tracker.num_active_instances
+    resp = {
+        "numNodes": numNodes
+    }
     response = memcachePool.response_class(
-        response=json.dumps(numNodes),
+        response=json.dumps(resp),
         status=200,
         mimetype='memcachePool/json'
     )
@@ -155,4 +183,31 @@ def list_all_keys():
 
 @memcachePool.route('/configure', methods=['POST'])
 def configure():
-    pass
+    single_cache_configure = {}
+    if 'mode' in request.args: 
+        mode = request.args.get('mode')
+        memcache_pool_tracker.mode_change(mode)
+    if 'numNodes' in request.args: 
+        numNodes = int(request.args.get('numNodes'))
+        memcache_pool_tracker.numNode_change(numNodes)
+    if 'cacheSize' in request.args: 
+        single_cache_configure["size"] = int(request.args.get('cacheSize'))
+    if 'policy' in request.args: 
+        single_cache_configure["mode"] = request.args.get('policy')
+    if 'expRatio' in request.args: 
+        expRatio = float(request.args.get('expRatio'))
+        memcache_pool_tracker.expand_ratio_change(expRatio)
+    if 'shrinkRatio' in request.args: 
+        shrinkRatio = float(request.args.get('shrinkRatio'))
+        memcache_pool_tracker.shrink_ratio_change(shrinkRatio)
+    if single_cache_configure != {}:
+        memcache_pool_tracker.configureNodes(single_cache_configure)
+    resp = {
+        "success" : "true"
+    }
+    response = memcachePool.response_class(
+        response=json.dumps(resp),
+        status=200,
+        mimetype='memcachePool/json'
+    )
+    return response

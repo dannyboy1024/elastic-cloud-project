@@ -49,10 +49,15 @@ def provision_ec2():
         if instance.id == 'i-07398e72531441a21':
             print("found skipped instance")
             continue
+        if instance.public_ip_address == None:
+            print("Instance not running", instance.id)
+            continue
         memcache_pool_tracker.available_instances.append(instance.id)
         memcache_pool_tracker.instances_ip[instance.id] = instance.public_ip_address
         print(instance.id, " ", memcache_pool_tracker.instances_ip[instance.id])
+    memcache_pool_tracker.maximum_possible_instances = len(memcache_pool_tracker.available_instances)
     first_active_instance = memcache_pool_tracker.available_instances[0]
+    print("Maximum_possible_instances =", memcache_pool_tracker.maximum_possible_instances)
     memcache_pool_tracker.active_instances[first_active_instance] = memcache_pool_tracker.instances_ip[first_active_instance]
     print(memcache_pool_tracker.available_instances)
     print(memcache_pool_tracker.instances_ip)
@@ -67,11 +72,41 @@ class memcache_pool_tracking:
         self.active_instances = {}
         self.all_keys_with_node = {}
         self.scaling_mode = "manual"
+        self.maximum_possible_instances = 8
         self.auto_expand = 2.0
         self.auto_shrink = 0.5
         self.total_size = 0
         self.num_items = 0
+        self.num_hit_request = 0
+        self.num_miss_request = 0
     
+    def update_key_tracking(self):
+        all_keys_with_node = {}
+        node_num = 0
+        for instance_id in self.active_instances:
+            instance_ip = self.instances_ip[instance_id]
+            instance_url = 'http://'+str(instance_ip)+':5000'
+            res = requests.post(instance_url + '/allKeyMemcache')
+            json_response = res.json()
+            keys = json_response["all_keys"]
+            if keys != []:
+                for key in keys:
+                    all_keys_with_node[key] = node_num
+            node_num += 1
+        self.all_keys_with_node = all_keys_with_node
+        self.num_items = len(self.all_keys_with_node)
+    
+    def update_total_size(self):
+        total_size = 0
+        for instance_id in self.active_instances:
+            instance_ip = self.instances_ip[instance_id]
+            instance_url = 'http://'+str(instance_ip)+':5000'
+            res = requests.post(instance_url + '/getCurrentSize')
+            json_response = res.json()
+            size = json_response["size"]
+            total_size += size
+        self.total_size = total_size
+
     def rebalance_nodes(self): 
         if self.all_keys_with_node != {}:
             for key in self.all_keys_with_node:
@@ -89,21 +124,35 @@ class memcache_pool_tracking:
                     if res.status_code == 400:
                         self.all_keys_with_node[key] = -1
                     else: 
-                        content = res.content
+                        json_response = res.json()
+                        content = json_response["value"]
+                        size = json_response["size"]
+                        #content = res.content
                         self.all_keys_with_node[key] = node_num
                         new_node_instance = self.available_instances[node_num]
                         new_node_ip = self.instances_ip[new_node_instance]
                         new_url = 'http://'+str(new_node_ip)+':5000'
                         requestJson = {
                             'key': key,
-                            'value': content
+                            'value': content, 
+                            'size': size
                         }
-                        requests.post(new_url + '/put', params=requestJson)
+                        res = requests.post(new_url + '/put', params=requestJson)
+                        if res.status_code == 400:
+                            self.all_keys_with_node[key] = -1
+
             keys_list = self.all_keys_with_node.keys()
             all_keys_list = list(keys_list)
             for key in all_keys_list:
                 if self.all_keys_with_node[key] == -1:
                     del self.all_keys_with_node[key]
+            self.num_items = len(self.all_keys_with_node)
+            for instance_id in self.instances_ip:
+                if instance_id not in self.active_instances:
+                    instance_ip = self.instances_ip[instance_id]
+                    instance_url = 'http://'+str(instance_ip)+':5000'
+                    requests.post(instance_url + '/clear')
+            self.update_total_size()
 
     def mode_change(self, mode):
         self.scaling_mode = mode
@@ -129,10 +178,17 @@ class memcache_pool_tracking:
                 del self.active_instances[shrink_instance]
             self.num_active_instances = numNodes
             self.rebalance_nodes()
+        print(self.active_instances)
+    
+    def configureNodes(self, single_cache_configure):
+        for instance_id in self.instances_ip:
+            instance_ip = self.instances_ip[instance_id]
+            instance_url = 'http://'+str(instance_ip)+':5000'
+            requests.post(instance_url + '/configureMemcache', params=single_cache_configure)
 
     def manual_change(self, change):
         self.scaling_mode = "manual"
-        if change == "grow" and self.num_active_instances < 8:
+        if change == "grow" and self.num_active_instances < self.maximum_possible_instances :
             new_index = self.num_active_instances
             new_instance = self.available_instances[new_index]
             self.active_instances[new_instance] = self.instances_ip[new_instance]
@@ -147,11 +203,11 @@ class memcache_pool_tracking:
     
     def auto_change(self, change): 
         self.scaling_mode = "auto"
-        if change == "grow" and self.num_active_instances < 8:
+        if change == "grow" and self.num_active_instances < self.maximum_possible_instances :
             new_num_instance = int(self.num_active_instances * self.auto_expand)
             if new_num_instance != self.num_active_instances:
-                if new_num_instance >= 8:
-                    new_num_instance = 8
+                if new_num_instance >= self.maximum_possible_instances :
+                    new_num_instance = self.maximum_possible_instances 
                 for instance_num in range(new_num_instance-self.num_active_instances):
                     new_index = self.num_active_instances + instance_num
                     new_instance = self.available_instances[new_index]
