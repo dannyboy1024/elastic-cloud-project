@@ -72,38 +72,36 @@ def test_hash():
 
 #test_bucket()
 provision_aws()
-test_hash()
-print(s3client)
-print(rds_client)
+#test_hash()
+#print(s3client)
+#print(rds_client)
 
 @manager.route('/')
 def main():
     return render_template("main.html")
 
-@manager.route('/api/upload', methods=['POST'])
-def upload():
-    """
-    Upload the key to the database
-    Store the value as a file in the local file system, key as filename
-    key: string
-    value: string (For images, base64 encoded string)
-    """
-    key = request.form.get('key')
-    image = request.files.get('file')
-    imageBytes = image.read()
-    encodedImage = base64.b64encode(str(imageBytes).encode())
+@manager.route('/upload', methods=['POST'])
+def uploadImage():
+    # upload image with key
+    # transfer the bytes into dict
+    data = request.form
+    key = data.get('key')
+    imageContent = data.get('file')
+    value = base64.b64encode(str(imageContent).encode())
+    imageSize = eval(imageContent).get('size')
+    print(eval(imageContent).get('name'))
     requestJson = {
         'key': key,
-        'value': encodedImage, 
-        #'size'
+        'value': value,
+        'size': imageSize, 
+        'name': eval(imageContent).get('name')
     }
     requests.post(memcache_pool_url + '/put', params=requestJson)
-    value = encodedImage
     filename  = request.args.get('name')
     full_file_path = os.path.join(os_file_path, filename)
     if os.path.isfile(full_file_path):
         os.remove(full_file_path)
-    with open(full_file_path, 'w') as fp:
+    with open(full_file_path, 'wb') as fp:
         fp.write(value)
     s3client.upload_file(full_file_path, bucket_name, filename)
     
@@ -113,9 +111,52 @@ def upload():
     else:
         db.updFileInfo(FILEINFO(key, filename))
     
-
+    resp = OrderedDict([("success", "true"), ("key", key)])
     response = manager.response_class(
-        response=json.dumps(filename),
+        response=json.dumps(resp),
+        status=200,
+        mimetype='application/json'
+    )
+
+    return response
+
+@manager.route('/api/upload', methods=['POST'])
+def upload_autotest():
+    """
+    Upload the key to the database
+    Store the value as a file in the local file system, key as filename
+    key: string
+    value: string (For images, base64 encoded string)
+    """
+    key = request.form.get('key')
+    image = request.files.get('file')
+    imageBytes = image.read()
+    imageSize = len(imageBytes)
+    encodedImage = base64.b64encode(str(imageBytes).encode())
+    requestJson = {
+        'key': key,
+        'value': encodedImage, 
+        'size': imageSize
+    }
+    requests.post(memcache_pool_url + '/put', params=requestJson)
+    value = encodedImage
+    filename  = image.filename
+    full_file_path = os.path.join(os_file_path, filename)
+    if os.path.isfile(full_file_path):
+        os.remove(full_file_path)
+    with open(full_file_path, 'wb') as fp:
+        fp.write(value)
+    s3client.upload_file(full_file_path, bucket_name, filename)
+    
+    # pending saving to rds
+    if db.readFileInfo(key) == None:
+        db.insertFileInfo(FILEINFO(key, filename))
+    else:
+        db.updFileInfo(FILEINFO(key, filename))
+
+    resp = OrderedDict([("success", "true"), ("key", key)])
+    response = manager.response_class(
+        response=json.dumps(resp),
         status=200,
         mimetype='application/json'
     )
@@ -138,8 +179,12 @@ def getFromS3():
         full_file_path = os.path.join(os_file_path, filename)
         s3client.download_file(bucket_name, filename, full_file_path)
         value = Path(full_file_path).read_text()
+        resp = {
+            "success" : "true", 
+            "value": value
+        }
         response = manager.response_class(
-            response=json.dumps(value),
+            response=json.dumps(resp),
             status=200,
             mimetype='application/json'
         )
@@ -177,7 +222,9 @@ def getImage():
                 mimetype='application/json'
             )
         else:
-            content = base64.b64decode(res.content)
+            json_response = res.json()
+            value = json_response["value"]
+            content = base64.b64decode(value)
             resp = OrderedDict()
             resp["success"] = "true"
             resp["key"] = key
@@ -190,7 +237,9 @@ def getImage():
         return response
     else:
         print('cache success')
-        content = base64.b64decode(res.content)
+        json_response = res.json()
+        value = json_response["value"]
+        content = base64.b64decode(value)
         resp = OrderedDict()
         resp["success"] = "true"
         resp["key"] = key
@@ -208,7 +257,7 @@ def retrieve_autotest(key_value):
     requestJson = {
         'key': key_value
     }
-    res = requests.post(memcache_pool_url + '/key/<key_value>', params=requestJson)
+    res = requests.post(memcache_pool_url + '/getImage', params=requestJson)
     if res.status_code == 400:
         # cache misses, query AWS service
         print('cache misses, query AWS service')
@@ -226,7 +275,9 @@ def retrieve_autotest(key_value):
                 mimetype='application/json'
             )
         else:
-            content = base64.b64decode(res.content)
+            json_response = res.json()
+            value = json_response["value"]
+            content = base64.b64decode(value)
             resp = OrderedDict()
             resp["success"] = "true"
             resp["key"] = key_value
@@ -239,7 +290,9 @@ def retrieve_autotest(key_value):
         return response
     else:
         print('cache success')
-        content = base64.b64decode(res.content)
+        json_response = res.json()
+        value = json_response["value"]
+        content = base64.b64decode(value)
         resp = OrderedDict()
         resp["success"] = "true"
         resp["key"] = key_value

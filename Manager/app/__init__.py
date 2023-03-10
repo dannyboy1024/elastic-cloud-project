@@ -51,7 +51,7 @@ class RDBMS:
         connection.close()
 
     def connect(self, db=None):
-        connection = mysql.connector.connect(host='database-1.cjh8iijvrxow.us-east-1.rds.amazonaws.com', user='admin', passwd='ece1779a2', database=db)
+        connection = mysql.connector.connect(host='database-a2w23.c352jaremkjb.us-east-1.rds.amazonaws.com', user='admin', passwd='ece1779a2', port=3309, database=db)
         cursor = connection.cursor()
         return connection, cursor
 
