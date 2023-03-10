@@ -1,0 +1,21 @@
+<html>
+<head>
+    <title>Configure Cache</title>
+</head>
+<body>
+    <form method="post" action="/configureCache">
+
+        <label for="capacity">Capacity (MB) for each cache:</label>
+        <input type="text" id="capacity" name="capacity">
+
+        <label for="dropdown">Choose a replacement policy:</label>
+        <select id="dropdown" name="dropdown">
+            {% for choice in policies %}
+                <option value="{{ choice }}">{{ choice }}</option>
+            {% endfor %}
+        </select>
+
+        <input type="submit" value="Submit">
+    </form>
+</body>
+</html>

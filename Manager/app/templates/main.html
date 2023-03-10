@@ -1,24 +1,15 @@
 <!DOCTYPE html>
 <head>
-    <title>Very simple memcache</title>
+    <title>Manager UI</title>
 </head>
 <html>
     <body>
-
-        <form action="{{ url_for('get')}}" method="post">
-            <label>key:</label>
-            <input type="text" name="key" />
-            <input type="submit" value="get" />
-        </form>
-
-        <form action="{{ url_for('put')}}" method="post">
-            <label>key:</label>
-            <input type="text" name="key" />
-            <label>value:</label>
-            <input type="text" name="value" />
-            <input type="submit" value="put" />
-        </form>
-
-
-    <body>    
+        <ul>
+            <li><a href="{{ url_for('displayCharts')}}">Display Charts</a></li>
+            <li><a href="{{ url_for('configureCache')}}">Configure Cache</a></li>
+            <li><a href="{{ url_for('configureCachePoolSizingMode')}}">Configure Cache Pool Sizing Mode</a></li>
+            <li><a href="{{ url_for('deleteAllData')}}">Delete all data</a></li>
+            <li><a href="{{ url_for('clearCache')}}">Clear Cache</a></li>
+        </ul>
+    </body>    
 </html>
