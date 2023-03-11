@@ -1,10 +1,10 @@
 
 from flask import render_template, url_for, request, session
 from app import manager, db, FILEINFO
+
 from flask import json
 from collections import OrderedDict
 import boto3
-from moto import mock_s3
 from pathlib import Path
 import os
 import hashlib
@@ -414,6 +414,7 @@ def configure_memcache():
     #Pending: if mode is auto specified, need to notify the auto scaler
 
     requests.post(memcache_pool_url + '/configure', params=requestJson)
+    requests.post(autoscaler_url, + '/autoScalarConfig', params=requestJson)
     resp = {"success": "true"}
     for key in requestJson:
         resp[key] = requestJson[key]
