@@ -3,19 +3,18 @@
     <title>Configure Cache</title>
 </head>
 <body>
-    <form method="post" action="/configureCache">
+    <form action="/api/configure_cache" method="get">
 
-        <label for="capacity">Capacity (MB) for each cache:</label>
-        <input type="text" id="capacity" name="capacity">
+        <label for="cacheSize">Capacity (MB) for each cache:</label>
+        <input type="text" id="cacheSize" name="cacheSize">
 
-        <label for="dropdown">Choose a replacement policy:</label>
-        <select id="dropdown" name="dropdown">
-            {% for choice in policies %}
-                <option value="{{ choice }}">{{ choice }}</option>
-            {% endfor %}
+        <label for="policy">Choose a replacement policy:</label>
+        <select id="policy" name="policy">
+            <option value="RR">Random Replacement</option>
+            <option value="LRU">Least Recently Used</option>
         </select>
 
-        <input type="submit" value="Submit">
+        <button type="submit">Submit</button>
     </form>
 </body>
 </html>
