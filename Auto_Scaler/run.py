@@ -11,10 +11,10 @@ memcache_pool_url = 'http://127.0.0.1:5002'
 
 cloudwatch = boto3.client('cloudwatch')
 thresholdAndRatio = {
-    'max': 8,
-    'min': 1
+    'max': 0.8,
+    'min': 0.2
 }
-mode = 'auto'
+mode = 'manual'
 
 scheduler = sched.scheduler(time.time, time.sleep)
 
