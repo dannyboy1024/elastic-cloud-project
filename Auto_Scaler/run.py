@@ -21,8 +21,9 @@ scheduler = sched.scheduler(time.time, time.sleep)
 
 # run the monitor function every 60 seconds
 def monitor(inc):
-    scheduler.enter(inc, 0, monitor, (inc,))
-    monitorMissRate()
+    if mode == 'auto':
+        scheduler.enter(inc, 0, monitor, (inc,))
+        monitorMissRate()
 
 
 @autoScaler.route('/autoScalarConfig', methods=['POST'])
@@ -32,11 +33,9 @@ def autoScalarConfig():
         operateMode = request.args.get('mode')
         if operateMode == 'manual':
             mode = 'manual'
-            scheduler.cancel()
         elif operateMode == 'auto':
             mode = 'auto'
-            scheduler.enter(60, 0, monitor, (60,))
-            scheduler.run()
+            scheduler.run(0, 0, monitor, (60,))
     global thresholdAndRatio
     if 'maxMiss' in request.args:
         maxMiss = float(request.args.get('maxMiss'))
