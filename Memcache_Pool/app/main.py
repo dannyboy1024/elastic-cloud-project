@@ -5,14 +5,75 @@ from collections import OrderedDict
 import base64
 import logging
 from pathlib import Path
-#from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 import os
 import time
 import atexit
 import requests
 import boto3
+from datetime import datetime
 
 provision_ec2()
+
+def updCacheStatsToCloudWatch():
+
+    #get stats
+    numActiveNodes = memcache_pool_tracker.active_instances
+    numHitReqs     = memcache_pool_tracker.num_hit_request
+    numMissReqs    = memcache_pool_tracker.num_miss_request 
+    numTotalReqs   = numHitReqs + numMissReqs
+    numItems       = memcache_pool_tracker.num_items
+    totalSize      = memcache_pool_tracker.total_size
+
+
+    #upload stats to cloudwatch
+    cloudwatch = boto3.client('cloudwatch')
+    response = cloudwatch.put_metric_data (
+        Namespace = 'Cache Stats',
+        MetricData = [
+            {
+                'MetricName': 'numActiveNodes',
+                'Timestamp': datetime.utcnow(),
+                'Unit': 'None',
+                'Value': numActiveNodes
+            },
+            {
+                'MetricName': 'numTotalRequests',
+                'Timestamp': datetime.utcnow(),
+                'Unit': 'None',
+                'Value': numTotalReqs
+            },
+            {
+                'MetricName': 'numMissRequests',
+                'Timestamp': datetime.utcnow(),
+                'Unit': 'None',
+                'Value': numMissReqs
+            },
+            {
+                'MetricName': 'numItems',
+                'Timestamp': datetime.utcnow(),
+                'Unit': 'None',
+                'Value': numItems
+            },
+            {
+                'MetricName': 'totalSize',
+                'Timestamp': datetime.utcnow(),
+                'Unit': 'None',
+                'Value': totalSize                
+            }
+        ]
+    )
+
+    #reset number of hit/miss requests
+    memcache_pool_tracker.num_hit_request  = 0
+    memcache_pool_tracker.num_miss_request = 0
+
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=updCacheStatsToCloudWatch, trigger="interval", seconds=5)
+scheduler.start()
+atexit.register(lambda: scheduler.shutdown()) # Shut down the scheduler when exiting the app
+
 
 @memcachePool.route('/')
 def main():
