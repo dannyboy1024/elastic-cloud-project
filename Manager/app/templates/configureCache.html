@@ -1,9 +1,22 @@
 <html>
 <head>
     <title>Configure Cache</title>
+    <!-- Load Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <!-- Bootstrap JS and jQuery -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <style>
+        /* CSS to center the popup window */
+        .modal-centered {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
 </head>
 <body>
-    <form action="/api/configure_cache" method="get">
+    <form action="/api/configure_cache" method="get" target="submit-iframe" onsubmit="showPopup()">
 
         <label for="cacheSize">Capacity (MB) for each cache:</label>
         <input type="text" id="cacheSize" name="cacheSize">
@@ -14,7 +27,41 @@
             <option value="LRU">Least Recently Used</option>
         </select>
 
-        <button type="submit">Submit</button>
+        <button type="submit" class="btn btn-primary" id="submit-btn">Submit</button>
     </form>
+
+    <!-- Bootstrap modal window -->
+    <div class="modal fade" id="popup-window" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+            <h4 class="modal-title">Success!</h4>
+            </div>
+            <div class="modal-body">
+            <p>Your form has been submitted successfully.</p>
+            </div>
+            <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-dismiss="modal">OK</button>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <script>
+        function showPopup() {
+            if ($('#popup-window').length) {
+                // Show the popup window
+                $('#popup-window').modal({
+                backdrop: 'static',
+                keyboard: false,
+                show: true
+                });
+            } else {
+                console.error('Popup window not found!');
+            }
+        }
+    </script>
+
+    <iframe name="submit-iframe" style="display:none;"></iframe>
 </body>
 </html>

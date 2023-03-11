@@ -11,6 +11,8 @@ import hashlib
 import base64
 import requests
 import plotly.graph_objs as go
+import pytz
+from datetime import datetime, timedelta
 
 os_file_path = os.getcwd()
 bucket_name = 'ece1779-winter23-a2-bucket'
@@ -481,33 +483,144 @@ def list_keys():
 #####################################
 ##    Manager Front End Routes     ##
 #####################################
-@manager.route('/displayCharts', methods=['GET'])
+@manager.route('/displayCharts', methods=['GET', 'POST'])
 def displayCharts():
     
+    # cloudwatch = boto3.client('cloudwatch')
+    
+    # # get numActiveNodes list
+    # response = cloudwatch.get_metric_statistics(
+    #     Period     = 1*5, # 5-second granularity
+    #     StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
+    #     EndTime    = datetime.utcnow(),
+    #     MetricName = 'numActiveNodes',
+    #     Namespace  = 'Cache Stats',
+    #     Unit       = 'None',
+    #     Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']        
+    # )
+    # numActiveNodesList = [datapoint['Average'] for datapoint in (['']+response['Datapoints'])[::12]][1:]
+
+    # # get numTotalRequests list
+    # response = cloudwatch.get_metric_statistics(
+    #     Period     = 1*60, # 1-minute granularity
+    #     StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
+    #     EndTime    = datetime.utcnow(),
+    #     MetricName = 'numTotalRequests',
+    #     Namespace  = 'Cache Stats',
+    #     Unit       = 'None',
+    #     Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']
+    # )
+    # numTotalRequestsList = [datapoint['Sum'] for datapoint in response['Datapoints']]
+
+    # # get numMissRequests list
+    # response = cloudwatch.get_metric_statistics(
+    #     Period     = 1*60, # 1-minute granularity
+    #     StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
+    #     EndTime    = datetime.utcnow(),
+    #     MetricName = 'numMissRequests',
+    #     Namespace  = 'Cache Stats',
+    #     Unit       = 'None',
+    #     Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount'] 
+    # )
+    # numMissRequestsList = [datapoint['Sum'] for datapoint in response['Datapoints']]
+
+    # # get numItems list
+    # response = cloudwatch.get_metric_statistics(
+    #     Period     = 1*5, # 5-second granularity
+    #     StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
+    #     EndTime    = datetime.utcnow(),
+    #     MetricName = 'numItems',
+    #     Namespace  = 'Cache Stats',
+    #     Unit       = 'None',
+    #     Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']      
+    # )
+    # numItemsList = [datapoint['Average'] for datapoint in (['']+response['Datapoints'])[::12]][1:]
+
+    # # get totalSize list
+    # response = cloudwatch.get_metric_statistics(
+    #     Period     = 1*5, # 5-second granularity
+    #     StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
+    #     EndTime    = datetime.utcnow(),
+    #     MetricName = 'totalSize',
+    #     Namespace  = 'Cache Stats',
+    #     Unit       = 'None',
+    #     Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']      
+    # )
+    # totalSizeList = [datapoint['Average'] for datapoint in (['']+response['Datapoints'])[::12]][1:]   
+
+    # missRateList      = [ (numMissRequestsList[i] / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
+    # hitRateList       = [ (numTotalRequestsList[i] - numMissRequestsList[i] / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
+    # numReqRunningSums = [ 0 for i in range(len(numTotalRequestsList))]
+    # for i in range(len(numTotalRequestsList)):
+    #     numReqRunningSums[i] = numTotalRequestsList[i] + (0 if i==0 else numReqRunningSums[i-1])
+    # numReqServedPerMinuteList = [ numReqRunningSums[i] / (i+1) for i in range(len(numTotalRequestsList))]
+
     # TODO: get stats from cloudwatch. Hardcoded so far #
-    missRates = [0.5 for i in range(30)]
-    hitRates = [0.5 for i in range(30)]
-    totalNumCacheItems = [i for i in range(30)]
-    totalSizeCacheItems = [i for i in range(30)]
-    numRequestsServedPerMinute = [1 for i in range(30)]
+    numActiveNodesList = [(i&2)+1 for i in range(30)]
+    missRateList = [0.5 for i in range(30)]
+    hitRateList = [0.5 for i in range(30)]
+    numItemsList = [i for i in range(30)]
+    totalSizeList = [i for i in range(30)]
+    numReqServedPerMinuteList = [1 for i in range(30)]
 
     # Create a list to store the Plotly chart objects
     figs = []
-    x = [i for i in range(30)]
-    x_label = 'Time (Minutes)'
-    y_data = [missRates, hitRates, totalNumCacheItems, totalSizeCacheItems, numRequestsServedPerMinute]
-    chart_names = ['Miss Rates', 
-                   'Hit Rates', 
-                   'Total number of cache items', 
-                   'Total size of cache items (MB)', 
-                   'Number of requests / minute'
-                   ]
+    x = [datetime.now(pytz.timezone('America/Toronto'))]
+    for i in range(29):
+        x.append(x[-1] - timedelta(seconds=60))
+    x = x[::-1]
+    x_label = 'Time'
+    y_data = [
+        numActiveNodesList,
+        missRateList,
+        hitRateList,
+        numItemsList,
+        totalSizeList,
+        numReqServedPerMinuteList
+    ]
+    chart_names = [
+        'Number of active nodes',
+        'Miss Rates', 
+        'Hit Rates', 
+        'Total number of cache items', 
+        'Total size of cache items (MB)', 
+        'Number of requests / minute'
+    ]
 
     # Create a Plotly line chart for each set of x and y data
     for y, name in zip(y_data, chart_names):
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name=name))
-        fig.update_layout(title=name, xaxis_title=x_label, yaxis_title=name, width=800, height=500)
+        if name == 'Miss Rates' or name == 'Hit Rates':
+            fig.update_layout(
+                title=name, 
+                xaxis_title=x_label, 
+                yaxis_title=name,
+                yaxis=dict(
+                    range=[0.0,1.0] 
+                ),
+                width=800, 
+                height=500)
+        elif name == 'Number of active nodes':
+            fig.update_layout(
+                title=name, 
+                xaxis_title=x_label, 
+                yaxis_title=name,
+                yaxis=dict(
+                    tickmode='linear',
+                    tick0=0,
+                    dtick=1,
+                    range=[0,8] 
+                ),
+                width=800, 
+                height=500)
+        else:
+            fig.update_layout(
+                title=name, 
+                xaxis_title=x_label, 
+                yaxis_title=name,
+                width=800, 
+                height=500)
         figs.append(fig)
 
     # Generate the HTML for each chart using Plotly's to_html() method
@@ -541,6 +654,9 @@ def configureCachePoolSizingMode():
     # numNodes = int(res.content)
     numNodes = 1
     return render_template('configureCachePoolSizingMode.html', numNodes = numNodes)
+# @manager.route('/handleSubmitPool', methods=['GET', 'POST'])
+# def handleSubmitPool():
+#     requests.get(manager_url + '/api/configure_cache')
 
 @manager.route('/deleteAllData', methods=['GET', 'POST'])
 def deleteAllData():
