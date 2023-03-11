@@ -412,6 +412,7 @@ def configure_memcache():
     #Pending: if mode is auto specified, need to notify the auto scaler
 
     requests.post(memcache_pool_url + '/configure', params=requestJson)
+    requests.post(autoscaler_url, + '/autoScalarConfig', params=requestJson)
     resp = {"success": "true"}
     for key in requestJson:
         resp[key] = requestJson[key]
