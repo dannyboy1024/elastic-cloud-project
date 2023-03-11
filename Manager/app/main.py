@@ -1,10 +1,9 @@
 
 from flask import render_template, url_for, request
-from app import manager, db, FILEINFO
+from Manager.app import manager, db, FILEINFO
 from flask import json
 from collections import OrderedDict
 import boto3
-from moto import mock_s3
 from pathlib import Path
 import os
 import hashlib
