@@ -31,7 +31,7 @@ class RDBMS:
         cursor.execute("Use A2_RDBMS")
 
         ####### Create a File Info table #########################
-        cursor.execute("DROP TABLE fileInfo")
+        cursor.execute("DROP TABLE IF EXISTS fileInfo")
         sql = """
         CREATE TABLE fileInfo (
         fileKey VARCHAR(150) NOT NULL,
