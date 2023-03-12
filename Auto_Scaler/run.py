@@ -22,8 +22,9 @@ scheduler = sched.scheduler(time.time, time.sleep)
 # run the monitor function every 60 seconds
 def monitor(inc):
     if mode == 'auto':
-        scheduler.enter(inc, 0, monitor, (inc,))
         monitorMissRate()
+        scheduler.enter(inc, 0, monitor, (inc,))
+
 
 
 @autoScaler.route('/autoScalarConfig', methods=['POST'])
