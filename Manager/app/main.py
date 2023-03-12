@@ -92,14 +92,14 @@ def uploadImage():
     value = base64.b64encode(str(imageContent).encode())
     imageSize = eval(imageContent).get('size')
     print(eval(imageContent).get('name'))
+    filename  = eval(imageContent).get('name')
     requestJson = {
         'key': key,
         'value': value,
         'size': imageSize, 
-        'name': eval(imageContent).get('name')
+        'name': filename
     }
     requests.post(memcache_pool_url + '/put', params=requestJson)
-    filename  = request.args.get('name')
     full_file_path = os.path.join(os_file_path, filename)
     if os.path.isfile(full_file_path):
         os.remove(full_file_path)
