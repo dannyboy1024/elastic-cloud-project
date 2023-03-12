@@ -857,7 +857,7 @@ def deletes():
 
 @manager.route('/deleteAllData', methods=['GET', 'POST'])
 def deleteAllData():
-    requests.post(memcache_pool_url + '/api/delete_all')
+    requests.post(manager_url + '/api/delete_all')
     return manager.response_class(
         response=json.dumps('ok'),
         status=200,
