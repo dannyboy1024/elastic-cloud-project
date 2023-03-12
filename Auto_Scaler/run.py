@@ -33,7 +33,7 @@ def monitor():
 
 
 def loop_monitor():
-    t = Timer(60, monitor())
+    t = Timer(60, monitor)
     t.start()
 
 
