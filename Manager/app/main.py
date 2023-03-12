@@ -414,7 +414,7 @@ def configure_memcache():
     #Pending: if mode is auto specified, need to notify the auto scaler
 
     requests.post(memcache_pool_url + '/configure', params=requestJson)
-    requests.post(autoscaler_url, + '/autoScalarConfig', params=requestJson)
+    requests.post(autoscaler_url + '/autoScalarConfig', params=requestJson)
     resp = {"success": "true"}
     for key in requestJson:
         resp[key] = requestJson[key]
@@ -465,7 +465,12 @@ def getRate():
             return response
         
         # get stats from cloudwatch
-        cloudwatch = boto3.client('cloudwatch')
+        #cloudwatch = boto3.client('cloudwatch')
+        cloudwatch = boto3.client( 'cloudwatch', 
+                                  region_name='us-east-1', 
+                                  aws_access_key_id = 'AKIAVW4WDBYWC5TM7LHC', 
+                                  aws_secret_access_key = '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'
+                                  )
         totalRequests = cloudwatch.get_metric_statistics(
             Period=1 * 60,
             StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
@@ -476,6 +481,7 @@ def getRate():
             Statistics=['Sum'],
         )
         totalNum = totalRequests['Datapoints'][0]['Sum']
+        print("totalNum:", totalNum)
 
         missRequests = cloudwatch.get_metric_statistics(
             Period=1 * 60,
@@ -487,12 +493,14 @@ def getRate():
             Statistics=['Sum'],
         )
         missNum = missRequests['Datapoints'][0]['Sum']
+        print("missNum:", missNum)
 
         rate = 0.0
-        if requestJson["rate"] == "miss":
-            rate = missNum / totalNum
-        else:
-            rate = (totalNum - missNum) / totalNum
+        if totalNum > 0:
+            if requestJson["rate"] == "miss":
+                rate = missNum / totalNum
+            else:
+                rate = (totalNum - missNum) / totalNum
         
         resp = {
             "success": "true",
@@ -502,7 +510,7 @@ def getRate():
                  
         response = manager.response_class(
             response=json.dumps(resp),
-            status=400,
+            status=200,
             mimetype='application/json'
         )
         return response
@@ -739,9 +747,10 @@ def configureCache():
 
 @manager.route('/configureCachePoolSizingMode', methods=['GET', 'POST'])
 def configureCachePoolSizingMode():
-    # res = requests.post(memcache_pool_url + '/getNumNodes')
-    # numNodes = int(res.content)
-    numNodes = 1
+    res = requests.post(memcache_pool_url + '/getNumNodes')
+    json_response = res.json()
+    numNodes = int(json_response["numNodes"])
+    #numNodes = 1
     return render_template('configureCachePoolSizingMode.html', numNodes = numNodes)
 # @manager.route('/handleSubmitPool', methods=['GET', 'POST'])
 # def handleSubmitPool():

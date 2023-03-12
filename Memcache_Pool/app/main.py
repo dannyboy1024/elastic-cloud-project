@@ -107,7 +107,7 @@ def getImage():
         response = memcachePool.response_class(
             response=json.dumps("Not in cache"),
             status=400,
-            mimetype='memcachePool/json'
+            mimetype='application/json'
         )
     else:
         #print('cache success')
@@ -121,7 +121,7 @@ def getImage():
         response = memcachePool.response_class(
             response=json.dumps(resp),
             status=200,
-            mimetype='memcachePool/json'
+            mimetype='application/json'
         )
     return response
 
@@ -216,7 +216,7 @@ def clear():
     response = memcachePool.response_class(
         response=json.dumps(resp),
         status=200,
-        mimetype='memcachePool/json'
+        mimetype='application/json'
     )
     return response
 
@@ -229,7 +229,7 @@ def getNumNodes():
     response = memcachePool.response_class(
         response=json.dumps(resp),
         status=200,
-        mimetype='memcachePool/json'
+        mimetype='application/json'
     )
     return response
 
@@ -244,7 +244,7 @@ def list_all_keys():
     response = memcachePool.response_class(
         response=json.dumps(resp),
         status=200,
-        mimetype='memcachePool/json'
+        mimetype='application/json'
     )
     return response
 
@@ -262,11 +262,15 @@ def configure():
     if 'policy' in request.args: 
         single_cache_configure["mode"] = request.args.get('policy')
     if 'expRatio' in request.args: 
-        expRatio = float(request.args.get('expRatio'))
-        memcache_pool_tracker.expand_ratio_change(expRatio)
+        arg_ratio = request.args.get('expRatio')
+        if arg_ratio != "": 
+            expRatio = float(arg_ratio)
+            memcache_pool_tracker.expand_ratio_change(expRatio)
     if 'shrinkRatio' in request.args: 
-        shrinkRatio = float(request.args.get('shrinkRatio'))
-        memcache_pool_tracker.shrink_ratio_change(shrinkRatio)
+        arg_ratio = request.args.get('shrinkRatio')
+        if arg_ratio != "": 
+            shrinkRatio = float(arg_ratio)
+            memcache_pool_tracker.shrink_ratio_change(shrinkRatio)
     if single_cache_configure != {}:
         memcache_pool_tracker.configureNodes(single_cache_configure)
     resp = {
@@ -275,6 +279,6 @@ def configure():
     response = memcachePool.response_class(
         response=json.dumps(resp),
         status=200,
-        mimetype='memcachePool/json'
+        mimetype='application/json'
     )
     return response
