@@ -6,6 +6,7 @@ import sched
 import time
 from flask import request, json
 import requests
+import threading
 
 memcache_pool_url = 'http://127.0.0.1:5002'
 
@@ -20,14 +21,14 @@ thresholdAndRatio = {
 }
 mode = 'manual'
 
-scheduler = sched.scheduler(time.time, time.sleep)
+#scheduler = sched.scheduler(time.time, time.sleep)
 
 
 # run the monitor function every 60 seconds
 def monitor(inc):
     if mode == 'auto':
         monitorMissRate()
-        scheduler.enter(inc, 0, monitor, (inc,))
+        threading.Thread(target=monitor,args=[inc]).start()
 
 
 
@@ -40,8 +41,9 @@ def autoScalarConfig():
             mode = 'manual'
         elif operateMode == 'auto':
             mode = 'auto'
-            scheduler.enter(0, 0, monitor, (60,))
-            scheduler.run()
+            threading.Thread(target=monitor).start()
+            #scheduler.enter(0, 0, monitor, (60,))
+            #scheduler.run()
     global thresholdAndRatio
     if 'maxMiss' in request.args:
         arg_ratio = request.args.get('maxMiss')
