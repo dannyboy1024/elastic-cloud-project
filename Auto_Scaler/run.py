@@ -11,10 +11,10 @@ memcache_pool_url = 'http://127.0.0.1:5002'
 
 cloudwatch = boto3.client('cloudwatch')
 thresholdAndRatio = {
-    'max': 8,
-    'min': 1
+    'max': 0.8,
+    'min': 0.2
 }
-mode = 'auto'
+mode = 'manual'
 
 scheduler = sched.scheduler(time.time, time.sleep)
 
@@ -49,8 +49,8 @@ def autoScalarConfig():
 # If the missRate is lower or higher than the min or max threshold, call resizeMemPool func
 def monitorMissRate():
     totalRequests = cloudwatch.get_metric_statistics(
-        Period=60 * 60,
-        StartTime=datetime.utcnow() - timedelta(seconds=60 * 60),
+        Period=1 * 60,
+        StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
         EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
         MetricName='numTotalRequests',
         Namespace='Cache Stats',
@@ -60,8 +60,8 @@ def monitorMissRate():
     totalNum = totalRequests['Datapoints'][0]['Sum']
 
     missRequests = cloudwatch.get_metric_statistics(
-        Period=60 * 60,
-        StartTime=datetime.utcnow() - timedelta(seconds=60 * 60),
+        Period=1 * 60,
+        StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
         EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
         MetricName='numMissRequests',
         Namespace='Cache Stats',
