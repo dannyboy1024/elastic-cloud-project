@@ -175,26 +175,34 @@ def getFromS3():
 
     #pending rds getting filename
     fileInfo = db.readFileInfo(key)
-    filename = fileInfo.location
-    fileSize = fileInfo.size
-    checkFile = s3client.list_objects_v2(Bucket=bucket_name, Prefix=filename)
-    if "Contents" in checkFile:
-        full_file_path = os.path.join(os_file_path, filename)
-        s3client.download_file(bucket_name, filename, full_file_path)
-        value = Path(full_file_path).read_text()
-        resp = {
-            "success" : "true", 
-            "value": value, 
-            "size": fileSize
-        }
-        response = manager.response_class(
-            response=json.dumps(resp),
-            status=200,
-            mimetype='application/json'
-        )
+    if fileInfo != None: 
+        filename = fileInfo.location
+        fileSize = fileInfo.size
+        checkFile = s3client.list_objects_v2(Bucket=bucket_name, Prefix=filename)
+        if "Contents" in checkFile:
+            full_file_path = os.path.join(os_file_path, filename)
+            s3client.download_file(bucket_name, filename, full_file_path)
+            value = Path(full_file_path).read_text()
+            resp = {
+                "success" : "true", 
+                "value": value, 
+                "size": fileSize
+            }
+            response = manager.response_class(
+                response=json.dumps(resp),
+                status=200,
+                mimetype='application/json'
+            )
+        else:
+            response = manager.response_class(
+                response=json.dumps("File Not Found"),
+                status=400,
+                mimetype='application/json'
+            )
     else:
+        print("Not found in DB")
         response = manager.response_class(
-            response=json.dumps("File Not Found"),
+            response=json.dumps("Not found in DB"),
             status=400,
             mimetype='application/json'
         )
