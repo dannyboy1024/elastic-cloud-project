@@ -1,15 +1,68 @@
 <!DOCTYPE html>
 <head>
     <title>Manager UI</title>
+    <!-- Load Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <style>
+        /* Custom CSS to make navbar vertical */
+        .navbar-vertical {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            padding: 20px;
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            width: 200px;
+            overflow-y: auto;
+        }
+        .navbar-vertical .navbar-brand {
+            font-weight: bold;
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+        .navbar-vertical .nav {
+            margin-top: 20px;
+        }
+        .navbar-vertical .nav > li > a {
+            padding: 10px 15px;
+            font-size: 16px;
+        }
+        .navbar-vertical .nav > li > a:hover {
+            background-color: #ddd;
+        }
+        nav a.active {
+            color: #fff;
+            background-color: #337ab7;
+        }
+        .center {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			height: 100vh;
+			background-color: #337ab7;
+			color: #fff;
+			font-size: 70px;
+			font-weight: bold;
+            padding-left: 150px;
+		}
+    </style>
 </head>
 <html>
     <body>
-        <ul>
-            <li><a href="{{ url_for('displayCharts')}}">Display Charts</a></li>
-            <li><a href="{{ url_for('configureCache')}}">Configure Cache</a></li>
-            <li><a href="{{ url_for('configureCachePoolSizingMode')}}">Configure Cache Pool Sizing Mode</a></li>
-            <li><a href="{{ url_for('deleteAllData')}}">Delete all data</a></li>
-            <li><a href="{{ url_for('clearCache')}}">Clear Cache</a></li>
-        </ul>
+        <nav class="navbar navbar-vertical">
+            <div class="navbar-header">
+              <a class="navbar-brand" href="/">Manager UI</a>
+            </div>
+            <ul class="nav navbar-nav">
+                <li><a href="{{ url_for('displayCharts')}}" >Display Charts</a></li>
+                <li><a href="{{ url_for('configureCache')}}">Configure Cache</a></li>
+                <li><a href="{{ url_for('configureCachePoolSizingMode')}}" >Configure Pool</a></li>
+                <li><a href="{{ url_for('deletes')}}">Clear Data</a></li>
+            </ul>
+        </nav>
+
+        <div class="center">Management Interface</div>
+
     </body>    
 </html>

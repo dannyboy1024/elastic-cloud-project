@@ -1,6 +1,6 @@
 <html>
 <head>
-    <title>Configure Cache</title>
+    <title>Clear Data</title>
     <!-- Load Bootstrap CSS -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
     <!-- Bootstrap JS and jQuery -->
@@ -51,7 +51,7 @@
     </style>
 </head>
 <body>
-    
+
     <nav class="navbar navbar-vertical">
         <div class="navbar-header">
             <a class="navbar-brand" href="/">Manager UI</a>
@@ -64,92 +64,44 @@
         </ul>
     </nav>
 
-    <form class="config" action="/api/configure_cache" method="get" target="submit-iframe" onsubmit="showPopup()">
-        
+    <form class="config" action="/deleteAllData" method="get" target="submit-iframe" onsubmit="showPopup()">
         <style>
-            button {
-                /* background-color: #4CAF50; */
-                border: none;
-                color: white;
-                padding: 10px 20px;
-                text-align: center;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 16px;
-                margin: 4px 2px;
-                cursor: pointer;
-                border-radius: 5px;
-            }
-            
-            button:hover {
-                opacity: 0.8;
-            }
-            
-            input[type=text] {
-                width: 30%;
-                padding: 12px 20px;
-                margin: 8px 0;
-                box-sizing: border-box;
-                border: none;
-                border-radius: 5px;
-                background-color: #f8f8f8;
-                font-size: 16px;
-            }
-            
-            select {
-                width: 100%;
-                padding: 12px 20px;
-                margin: 8px 0;
-                box-sizing: border-box;
-                border: none;
-                border-radius: 5px;
-                background-color: #f8f8f8;
-                font-size: 16px;
-            }
-            
             label {
                 font-size: 16px;
             }
-            
-            #submit-btn {
+            #deleteAll-btn {
                 /* background-color: #4CAF50; */
                 color: white;
                 font-weight: bold;
                 font-size: 18px;
             }
-            
-            #submit-btn:hover {
+            #deleteAll-btn:hover {
                 opacity: 0.8;
             }
-            
-            #manParams, #autoParams {
-                margin-bottom: 10px;
-            }
         </style>
-
-        <div class="form-group row">
-            <label for="policy" class="col-sm-12 col-form-label">Replacement policy</label>
-            <div class="col-sm-4">
-            <select class="form-control" id="policy" name="policy">
-                <option value="RR">Random Replacement</option>
-                <option value="LRU">Least Recently Used</option>
-            </select>
-            </div>
-        </div>
-        <div class="form-group row">
-          <label for="cacheSize" class="col-sm-12 col-form-label">Capacity (MB) for each cache </label>
-          <div class="col-sm-4">
-            <input type="text" class="form-control" id="cacheSize" name="cacheSize" placeholder="e.g. 2">
-          </div>
-        </div>
-        <div class="form-group row">
-          <div class="col-sm-4">
-            <button type="submit" class="btn btn-primary" id="submit-btn" disabled>Submit</button>
-          </div>
-        </div>
+        <label for="deleteAll-btn"> Clear S3, RDS, and caches </label>
+        <button type="submit" class="btn btn-primary" name="deleteAll-btn" id="deleteAll-btn">Go!</button>
     </form>
 
-    <!-- Bootstrap modal window -->
+    <form class="config" action="/clearCache" method="get" target="submit-iframe" onsubmit="showPopup()">
+        <style>
+            label {
+                font-size: 16px;
+            }
+            #deleteCache-btn {
+                /* background-color: #4CAF50; */
+                color: white;
+                font-weight: bold;
+                font-size: 18px;
+            }
+            #deleteCache-btn:hover {
+                opacity: 0.8;
+            }
+        </style>
+        <label for="deleteCache-btn"> Clear caches only </label>
+        <button type="submit" class="btn btn-primary" name="deleteCache-btn" id="deleteCache-btn">Go!</button>
+    </form>
+
     <div class="modal fade" id="popup-window" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
@@ -157,7 +109,7 @@
             <h4 class="modal-title">Success!</h4>
             </div>
             <div class="modal-body">
-            <p>Cache Configuration Updated!</p>
+            <p>Data Cleared!</p>
             </div>
             <div class="modal-footer">
             <button type="button" class="btn btn-primary" data-dismiss="modal">OK</button>
@@ -189,18 +141,8 @@
                 console.error('Popup window not found!');
             }
         }
-        // Get references to the input field and button
-        const cacheSize = document.getElementById('cacheSize');
-        const button = document.getElementById('submit-btn');
-        // Add an event listener to the input field that checks its value and enables/disables the button accordingly
-        cacheSize.addEventListener('input', () => {
-            if (cacheSize.value === '') {
-                button.disabled = true;
-            } else {
-                button.disabled = false;
-            }
-        });
     </script>
+
 
     <iframe name="submit-iframe" style="display:none;"></iframe>
 </body>
