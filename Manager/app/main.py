@@ -212,7 +212,8 @@ def getFromS3():
 @manager.route('/api/getImage', methods=['POST'])
 def getImage():
     # retrieve image
-    key = request.form.get('key')
+    data = request.form
+    key = data.get('key')
     requestJson = {
         'key': key
     }
