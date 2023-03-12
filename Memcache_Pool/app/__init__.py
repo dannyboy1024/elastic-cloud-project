@@ -231,6 +231,7 @@ class memcache_pool_tracking:
 memcachePool = Flask(__name__)
 CORS(memcachePool)
 memcache_pool_tracker = memcache_pool_tracking()
+from app import main
 
 
 

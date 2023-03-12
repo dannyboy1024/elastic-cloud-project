@@ -18,7 +18,8 @@ provision_ec2()
 def updCacheStatsToCloudWatch():
 
     #get stats
-    numActiveNodes = memcache_pool_tracker.active_instances
+    print("Uploading stats ...")
+    numActiveNodes = memcache_pool_tracker.num_active_instances
     numHitReqs     = memcache_pool_tracker.num_hit_request
     numMissReqs    = memcache_pool_tracker.num_miss_request 
     numTotalReqs   = numHitReqs + numMissReqs
@@ -27,7 +28,12 @@ def updCacheStatsToCloudWatch():
 
 
     #upload stats to cloudwatch
-    cloudwatch = boto3.client('cloudwatch')
+    cloudwatch = boto3.client(
+        'cloudwatch',
+        region_name='us-east-1',
+        aws_access_key_id = 'AKIAVW4WDBYWC5TM7LHC',
+        aws_secret_access_key = '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'
+    )
     response = cloudwatch.put_metric_data (
         Namespace = 'Cache Stats',
         MetricData = [

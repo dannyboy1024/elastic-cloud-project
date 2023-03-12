@@ -445,8 +445,10 @@ def getNumNodes_Manager():
 @manager.route('/api/getRate', methods=['POST'])
 def getRate():
     requestJson = {}
-    if 'rate' in request.args: 
+    if 'rate' in request.args:
+        
         requestJson["rate"] = request.args.get('rate')
+        
         if requestJson["rate"] != "miss" and requestJson["rate"] != "hit": 
             resp = {
                 "success": "false",
@@ -461,7 +463,64 @@ def getRate():
                 mimetype='application/json'
             )
             return response
-    pass
+        
+        # get stats from cloudwatch
+        cloudwatch = boto3.client('cloudwatch')
+        totalRequests = cloudwatch.get_metric_statistics(
+            Period=1 * 60,
+            StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
+            EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
+            MetricName='numTotalRequests',
+            Namespace='Cache Stats',
+            Unit='None',
+            Statistics=['Sum'],
+        )
+        totalNum = totalRequests['Datapoints'][0]['Sum']
+
+        missRequests = cloudwatch.get_metric_statistics(
+            Period=1 * 60,
+            StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
+            EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
+            MetricName='numMissRequests',
+            Namespace='Cache Stats',
+            Unit='None',
+            Statistics=['Sum'],
+        )
+        missNum = missRequests['Datapoints'][0]['Sum']
+
+        rate = 0.0
+        if requestJson["rate"] == "miss":
+            rate = missNum / totalNum
+        else:
+            rate = (totalNum - missNum) / totalNum
+        
+        resp = {
+            "success": "true",
+            "rate": requestJson["rate"],
+            "value": rate
+        }
+                 
+        response = manager.response_class(
+            response=json.dumps(resp),
+            status=400,
+            mimetype='application/json'
+        )
+        return response
+
+    # When 'rate' is not found
+    resp = {
+        "success": "false",
+        "error": {
+            "code": 400, 
+            "message": "Only miss and hit rates are available"
+        }
+    }               
+    response = manager.response_class(
+        response=json.dumps(resp),
+        status=400,
+        mimetype='application/json'
+    )
+    return response
 
 @manager.route('/api/list_keys', methods=['POST'])
 def list_keys():
@@ -486,89 +545,119 @@ def list_keys():
 @manager.route('/displayCharts', methods=['GET', 'POST'])
 def displayCharts():
     
-    # cloudwatch = boto3.client('cloudwatch')
+    cloudwatch = boto3.client(
+        'cloudwatch',
+        region_name='us-east-1',
+        aws_access_key_id = 'AKIAVW4WDBYWC5TM7LHC',
+        aws_secret_access_key = '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'
+    )
     
-    # # get numActiveNodes list
-    # response = cloudwatch.get_metric_statistics(
-    #     Period     = 1*5, # 5-second granularity
-    #     StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
-    #     EndTime    = datetime.utcnow(),
-    #     MetricName = 'numActiveNodes',
-    #     Namespace  = 'Cache Stats',
-    #     Unit       = 'None',
-    #     Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']        
-    # )
-    # numActiveNodesList = [datapoint['Average'] for datapoint in (['']+response['Datapoints'])[::12]][1:]
+    def sort_by_timeStamp(datapoint):
+        return datapoint['Timestamp']
 
-    # # get numTotalRequests list
-    # response = cloudwatch.get_metric_statistics(
-    #     Period     = 1*60, # 1-minute granularity
-    #     StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
-    #     EndTime    = datetime.utcnow(),
-    #     MetricName = 'numTotalRequests',
-    #     Namespace  = 'Cache Stats',
-    #     Unit       = 'None',
-    #     Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']
-    # )
-    # numTotalRequestsList = [datapoint['Sum'] for datapoint in response['Datapoints']]
+    # get numActiveNodes list
+    resp1 = cloudwatch.get_metric_statistics(
+        Period     = 1*60, # 5-second granularity
+        StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
+        EndTime    = datetime.utcnow(),
+        MetricName = 'numActiveNodes',
+        Namespace  = 'Cache Stats',
+        Unit       = 'None',
+        Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']        
+    )
+    sortedResp1 = sorted(resp1['Datapoints'], key=sort_by_timeStamp)
+    numActiveNodesList = [datapoint['Average'] for datapoint in sortedResp1]
 
-    # # get numMissRequests list
-    # response = cloudwatch.get_metric_statistics(
-    #     Period     = 1*60, # 1-minute granularity
-    #     StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
-    #     EndTime    = datetime.utcnow(),
-    #     MetricName = 'numMissRequests',
-    #     Namespace  = 'Cache Stats',
-    #     Unit       = 'None',
-    #     Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount'] 
-    # )
-    # numMissRequestsList = [datapoint['Sum'] for datapoint in response['Datapoints']]
+    # get numTotalRequests list
+    resp2 = cloudwatch.get_metric_statistics(
+        Period     = 1*60, # 1-minute granularity
+        StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
+        EndTime    = datetime.utcnow(),
+        MetricName = 'numTotalRequests',
+        Namespace  = 'Cache Stats',
+        Unit       = 'None',
+        Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']
+    )
+    sortedResp2 = sorted(resp2['Datapoints'], key=sort_by_timeStamp)
+    numTotalRequestsList = [datapoint['Sum'] for datapoint in sortedResp2]
 
-    # # get numItems list
-    # response = cloudwatch.get_metric_statistics(
-    #     Period     = 1*5, # 5-second granularity
-    #     StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
-    #     EndTime    = datetime.utcnow(),
-    #     MetricName = 'numItems',
-    #     Namespace  = 'Cache Stats',
-    #     Unit       = 'None',
-    #     Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']      
-    # )
-    # numItemsList = [datapoint['Average'] for datapoint in (['']+response['Datapoints'])[::12]][1:]
+    # get numMissRequests list
+    resp3 = cloudwatch.get_metric_statistics(
+        Period     = 1*60, # 1-minute granularity
+        StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
+        EndTime    = datetime.utcnow(),
+        MetricName = 'numMissRequests',
+        Namespace  = 'Cache Stats',
+        Unit       = 'None',
+        Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount'] 
+    )
+    sortedResp3 = sorted(resp3['Datapoints'], key=sort_by_timeStamp)
+    numMissRequestsList = [datapoint['Sum'] for datapoint in sortedResp3]
 
-    # # get totalSize list
-    # response = cloudwatch.get_metric_statistics(
-    #     Period     = 1*5, # 5-second granularity
-    #     StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
-    #     EndTime    = datetime.utcnow(),
-    #     MetricName = 'totalSize',
-    #     Namespace  = 'Cache Stats',
-    #     Unit       = 'None',
-    #     Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']      
-    # )
-    # totalSizeList = [datapoint['Average'] for datapoint in (['']+response['Datapoints'])[::12]][1:]   
+    # get numItems list
+    resp4 = cloudwatch.get_metric_statistics(
+        Period     = 1*60, # 5-second granularity
+        StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
+        EndTime    = datetime.utcnow(),
+        MetricName = 'numItems',
+        Namespace  = 'Cache Stats',
+        Unit       = 'None',
+        Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']      
+    )
+    sortedResp4 = sorted(resp4['Datapoints'], key=sort_by_timeStamp)
+    numItemsList = [datapoint['Average'] for datapoint in sortedResp4]
 
-    # missRateList      = [ (numMissRequestsList[i] / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
-    # hitRateList       = [ (numTotalRequestsList[i] - numMissRequestsList[i] / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
+    # get totalSize list
+    resp5 = cloudwatch.get_metric_statistics(
+        Period     = 1*60, # 5-second granularity
+        StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
+        EndTime    = datetime.utcnow(),
+        MetricName = 'totalSize',
+        Namespace  = 'Cache Stats',
+        Unit       = 'None',
+        Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']      
+    )
+    sortedResp5 = sorted(resp5['Datapoints'], key=sort_by_timeStamp)
+    totalSizeList = [datapoint['Average'] for datapoint in sortedResp5]
+
+    missRateList      = [ (numMissRequestsList[i] / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
+    hitRateList       = [ (numTotalRequestsList[i] - numMissRequestsList[i] / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
     # numReqRunningSums = [ 0 for i in range(len(numTotalRequestsList))]
     # for i in range(len(numTotalRequestsList)):
     #     numReqRunningSums[i] = numTotalRequestsList[i] + (0 if i==0 else numReqRunningSums[i-1])
     # numReqServedPerMinuteList = [ numReqRunningSums[i] / (i+1) for i in range(len(numTotalRequestsList))]
 
+    # print('---------------------- resp1 ------------------------')
+    # for datapoint in sortedResp1:
+    #     print(datapoint)
+    # print(len(sortedResp1))
+
+    # print('---------------------- resp2 ------------------------')
+    # for datapoint in sortedResp2:
+    #     print(datapoint)
+    # print(len(sortedResp2))
+
     # TODO: get stats from cloudwatch. Hardcoded so far #
-    numActiveNodesList = [(i&2)+1 for i in range(30)]
-    missRateList = [0.5 for i in range(30)]
-    hitRateList = [0.5 for i in range(30)]
-    numItemsList = [i for i in range(30)]
-    totalSizeList = [i for i in range(30)]
-    numReqServedPerMinuteList = [1 for i in range(30)]
+    # # numActiveNodesList = [(i&2)+1 for i in range(30)]
+    # # missRateList = [0.5 for i in range(30)]
+    # # hitRateList = [0.5 for i in range(30)]
+    # # numItemsList = [i for i in range(30)]
+    # # totalSizeList = [i for i in range(30)]
+    # # numReqServedPerMinuteList = [1 for i in range(30)]
 
     # Create a list to store the Plotly chart objects
     figs = []
-    x = [datetime.now(pytz.timezone('America/Toronto'))]
-    for i in range(29):
-        x.append(x[-1] - timedelta(seconds=60))
-    x = x[::-1]
+    # x = [datetime.now(pytz.timezone('America/Toronto'))]
+    # for i in range(29):
+    #     x.append(x[-1] - timedelta(seconds=60))
+    x_data = [
+        sorted([datapoint['Timestamp'] for datapoint in resp1['Datapoints']]),
+        sorted([datapoint['Timestamp'] for datapoint in resp2['Datapoints']]),
+        sorted([datapoint['Timestamp'] for datapoint in resp3['Datapoints']]),
+        sorted([datapoint['Timestamp'] for datapoint in resp4['Datapoints']]),
+        sorted([datapoint['Timestamp'] for datapoint in resp5['Datapoints']]),
+        sorted([datapoint['Timestamp'] for datapoint in resp2['Datapoints']])
+    ]
     x_label = 'Time'
     y_data = [
         numActiveNodesList,
@@ -576,7 +665,7 @@ def displayCharts():
         hitRateList,
         numItemsList,
         totalSizeList,
-        numReqServedPerMinuteList
+        numTotalRequestsList
     ]
     chart_names = [
         'Number of active nodes',
@@ -584,11 +673,11 @@ def displayCharts():
         'Hit Rates', 
         'Total number of cache items', 
         'Total size of cache items (MB)', 
-        'Number of requests / minute'
+        'Number of requests'
     ]
 
     # Create a Plotly line chart for each set of x and y data
-    for y, name in zip(y_data, chart_names):
+    for x, y, name in zip(x_data, y_data, chart_names):
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name=name))
         if name == 'Miss Rates' or name == 'Hit Rates':
