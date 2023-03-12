@@ -209,13 +209,12 @@ def getFromS3():
 
     return response
 
-@manager.route('/api/getImage', methods=['POST'])
-def getImage():
+@manager.route('/key/<key_value>', methods=['POST'])
+def getImage(key_value):
+    # get, upload image with key
     # retrieve image
-    data = request.form
-    key = data.get('key')
     requestJson = {
-        'key': key
+        'key': key_value
     }
     res = requests.post(memcache_pool_url + '/getImage', params=requestJson)
     if res.status_code == 400:
@@ -241,10 +240,10 @@ def getImage():
             content = base64.b64decode(value)
             resp = OrderedDict()
             resp["success"] = "true"
-            resp["key"] = key
+            resp["key"] = key_value
             resp["content"] = bytes.decode(content)
             requestJson = {
-                'key': key,
+                'key': key_value,
                 'value': value, 
                 'size': size
             }
@@ -262,7 +261,7 @@ def getImage():
         content = base64.b64decode(value)
         resp = OrderedDict()
         resp["success"] = "true"
-        resp["key"] = key
+        resp["key"] = key_value
         resp["content"] = bytes.decode(content)
         response = manager.response_class(
             response=json.dumps(resp),
