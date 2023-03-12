@@ -860,7 +860,7 @@ def deleteAllData():
     requests.post(memcache_pool_url + '/api/delete_all')
     return manager.response_class(
         response=json.dumps('ok'),
-        status=400,
+        status=200,
         mimetype='application/json'
     )
 
@@ -869,6 +869,6 @@ def clearCache():
     requests.post(memcache_pool_url + '/clear')
     return manager.response_class(
         response=json.dumps('ok'),
-        status=400,
+        status=200,
         mimetype='application/json'
     )
