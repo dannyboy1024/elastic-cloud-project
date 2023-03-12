@@ -35,7 +35,8 @@ def autoScalarConfig():
             mode = 'manual'
         elif operateMode == 'auto':
             mode = 'auto'
-            scheduler.run(0, 0, monitor, (60,))
+            scheduler.enter(0, 0, monitor, (60,))
+            scheduler.run()
     global thresholdAndRatio
     if 'maxMiss' in request.args:
         maxMiss = float(request.args.get('maxMiss'))
