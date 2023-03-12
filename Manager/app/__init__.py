@@ -7,9 +7,10 @@ from mysql.connector import (connection, errorcode)
 from botocore.exceptions import ClientError
 
 class FILEINFO:
-    def __init__(self, key, location):
+    def __init__(self, key, location, size):
         self.key = key
         self.location = location
+        self.size = size
 
 class RDBMS:
 
@@ -30,10 +31,12 @@ class RDBMS:
         cursor.execute("Use A2_RDBMS")
 
         ####### Create a File Info table #########################
+        cursor.execute("DROP TABLE fileInfo")
         sql = """
         CREATE TABLE fileInfo (
         fileKey VARCHAR(150) NOT NULL,
         location VARCHAR(150) NOT NULL,
+        size VARCHAR(150) NOT NULL,
         PRIMARY KEY (fileKey)
         );
         """
@@ -65,10 +68,10 @@ class RDBMS:
         # Current table is cacheConfigs
         tableName = "fileInfo"
         sql = """
-        INSERT INTO {} (fileKey, location)
-        VALUES (%s, %s)
+        INSERT INTO {} (fileKey, location, size)
+        VALUES (%s, %s, %s)
         """.format(tableName)
-        vals = (fileInfo.key, fileInfo.location)
+        vals = (fileInfo.key, fileInfo.location, fileInfo.size)
         cursor.execute(sql, vals)
 
         # Commit the changes and disconnect
@@ -153,10 +156,10 @@ class RDBMS:
         tableName = "fileInfo"
         sql = """
         UPDATE {}
-        SET location = %s
+        SET location = %s, size = %s
         WHERE fileKey = %s
         """.format(tableName)
-        val = (fileInfo.location, fileInfo.key)
+        val = (fileInfo.location, fileInfo.size, fileInfo.key)
         cursor.execute(sql, val)
 
         # Commit the changes and disconnect
