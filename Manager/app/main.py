@@ -109,9 +109,9 @@ def uploadImage():
     
     # pending saving to rds
     if db.readFileInfo(key) == None:
-        db.insertFileInfo(FILEINFO(key, filename))
+        db.insertFileInfo(FILEINFO(key, filename, imageSize))
     else:
-        db.updFileInfo(FILEINFO(key, filename))
+        db.updFileInfo(FILEINFO(key, filename, imageSize))
     
     resp = OrderedDict([("success", "true"), ("key", key)])
     response = manager.response_class(
@@ -152,9 +152,9 @@ def upload_autotest():
     
     # pending saving to rds
     if db.readFileInfo(key) == None:
-        db.insertFileInfo(FILEINFO(key, filename))
+        db.insertFileInfo(FILEINFO(key, filename, imageSize))
     else:
-        db.updFileInfo(FILEINFO(key, filename))
+        db.updFileInfo(FILEINFO(key, filename, imageSize))
 
     resp = OrderedDict([("success", "true"), ("key", key)])
     response = manager.response_class(
@@ -176,6 +176,7 @@ def getFromS3():
     #pending rds getting filename
     fileInfo = db.readFileInfo(key)
     filename = fileInfo.location
+    fileSize = fileInfo.size
     checkFile = s3client.list_objects_v2(Bucket=bucket_name, Prefix=filename)
     if "Contents" in checkFile:
         full_file_path = os.path.join(os_file_path, filename)
@@ -183,7 +184,8 @@ def getFromS3():
         value = Path(full_file_path).read_text()
         resp = {
             "success" : "true", 
-            "value": value
+            "value": value, 
+            "size": fileSize
         }
         response = manager.response_class(
             response=json.dumps(resp),
@@ -226,11 +228,18 @@ def getImage():
         else:
             json_response = res.json()
             value = json_response["value"]
+            size = json_response["size"]
             content = base64.b64decode(value)
             resp = OrderedDict()
             resp["success"] = "true"
             resp["key"] = key
             resp["content"] = bytes.decode(content)
+            requestJson = {
+                'key': key,
+                'value': value, 
+                'size': size
+            }
+            requests.post(memcache_pool_url + '/put', params=requestJson)
             response = manager.response_class(
                 response=json.dumps(resp),
                 status=200,
@@ -279,11 +288,18 @@ def retrieve_autotest(key_value):
         else:
             json_response = res.json()
             value = json_response["value"]
+            size = json_response["size"]
             content = base64.b64decode(value)
             resp = OrderedDict()
             resp["success"] = "true"
             resp["key"] = key_value
             resp["content"] = bytes.decode(content)
+            requestJson = {
+                'key': key_value,
+                'value': value, 
+                'size': size
+            }
+            requests.post(memcache_pool_url + '/put', params=requestJson)
             response = manager.response_class(
                 response=json.dumps(resp),
                 status=200,
@@ -351,6 +367,9 @@ def clear_memcache():
 
 @manager.route('/api/configure_cache', methods=['GET', 'POST'])
 def configure_memcache():
+
+    print('args ->', request.args)
+
     requestJson = {}
     if 'mode' in request.args: 
         requestJson["mode"] = request.args.get('mode')
@@ -471,29 +490,38 @@ def getRate():
                                   aws_access_key_id = 'AKIAVW4WDBYWC5TM7LHC', 
                                   aws_secret_access_key = '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'
                                   )
-        totalRequests = cloudwatch.get_metric_statistics(
-            Period=1 * 60,
-            StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
-            EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
-            MetricName='numTotalRequests',
-            Namespace='Cache Stats',
-            Unit='None',
-            Statistics=['Sum'],
-        )
-        totalNum = totalRequests['Datapoints'][0]['Sum']
-        print("totalNum:", totalNum)
-
-        missRequests = cloudwatch.get_metric_statistics(
-            Period=1 * 60,
-            StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
-            EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
-            MetricName='numMissRequests',
-            Namespace='Cache Stats',
-            Unit='None',
-            Statistics=['Sum'],
-        )
-        missNum = missRequests['Datapoints'][0]['Sum']
-        print("missNum:", missNum)
+        try:
+            totalRequests = cloudwatch.get_metric_statistics(
+                Period=1 * 60,
+                StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
+                EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
+                MetricName='numTotalRequests',
+                Namespace='Cache Stats',
+                Unit='None',
+                Statistics=['Sum'],
+            )
+        except IndexError:
+            totalNum = 0
+            print('the metric-totalNum is empty')
+        else:
+            totalNum = totalRequests['Datapoints'][0]['Sum']
+            print("totalNum =", totalNum)
+        try:
+            missRequests = cloudwatch.get_metric_statistics(
+                Period=1 * 60,
+                StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
+                EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
+                MetricName='numMissRequests',
+                Namespace='Cache Stats',
+                Unit='None',
+                Statistics=['Sum'],
+            )
+        except IndexError:
+            missNum = 0
+            print('the metric-missNum is empty')
+        else:
+            missNum = missRequests['Datapoints'][0]['Sum']
+            print("missNum =", missNum)
 
         rate = 0.0
         if totalNum > 0:
@@ -547,6 +575,22 @@ def list_keys():
     )
     return response
 
+@manager.route('/allKeyDB', methods=['POST'])
+def allKeyDB():
+    """
+    Display all the keys that stored in the database
+    No inputs required
+    """
+    allKeys = db.readAllFileKeys()
+
+    response = manager.response_class(
+        response=json.dumps(allKeys),
+        status=200,
+        mimetype='application/json'
+    )
+
+    return response
+
 #####################################
 ##    Manager Front End Routes     ##
 #####################################
@@ -565,7 +609,7 @@ def displayCharts():
 
     # get numActiveNodes list
     resp1 = cloudwatch.get_metric_statistics(
-        Period     = 1*60, # 5-second granularity
+        Period     = 1*60,
         StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
         EndTime    = datetime.utcnow(),
         MetricName = 'numActiveNodes',
@@ -574,11 +618,11 @@ def displayCharts():
         Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']        
     )
     sortedResp1 = sorted(resp1['Datapoints'], key=sort_by_timeStamp)
-    numActiveNodesList = [datapoint['Average'] for datapoint in sortedResp1]
+    numActiveNodesList = [datapoint['Maximum'] for datapoint in sortedResp1]
 
     # get numTotalRequests list
     resp2 = cloudwatch.get_metric_statistics(
-        Period     = 1*60, # 1-minute granularity
+        Period     = 1*60,
         StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
         EndTime    = datetime.utcnow(),
         MetricName = 'numTotalRequests',
@@ -591,7 +635,7 @@ def displayCharts():
 
     # get numMissRequests list
     resp3 = cloudwatch.get_metric_statistics(
-        Period     = 1*60, # 1-minute granularity
+        Period     = 1*60,
         StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
         EndTime    = datetime.utcnow(),
         MetricName = 'numMissRequests',
@@ -604,7 +648,7 @@ def displayCharts():
 
     # get numItems list
     resp4 = cloudwatch.get_metric_statistics(
-        Period     = 1*60, # 5-second granularity
+        Period     = 1*60,
         StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
         EndTime    = datetime.utcnow(),
         MetricName = 'numItems',
@@ -613,11 +657,11 @@ def displayCharts():
         Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']      
     )
     sortedResp4 = sorted(resp4['Datapoints'], key=sort_by_timeStamp)
-    numItemsList = [datapoint['Average'] for datapoint in sortedResp4]
+    numItemsList = [datapoint['Maximum'] for datapoint in sortedResp4]
 
     # get totalSize list
     resp5 = cloudwatch.get_metric_statistics(
-        Period     = 1*60, # 5-second granularity
+        Period     = 1*60,
         StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
         EndTime    = datetime.utcnow(),
         MetricName = 'totalSize',
@@ -626,14 +670,11 @@ def displayCharts():
         Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']      
     )
     sortedResp5 = sorted(resp5['Datapoints'], key=sort_by_timeStamp)
-    totalSizeList = [datapoint['Average'] for datapoint in sortedResp5]
+    totalSizeList = [datapoint['Maximum'] for datapoint in sortedResp5]
+
 
     missRateList      = [ (numMissRequestsList[i] / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
     hitRateList       = [ (numTotalRequestsList[i] - numMissRequestsList[i] / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
-    # numReqRunningSums = [ 0 for i in range(len(numTotalRequestsList))]
-    # for i in range(len(numTotalRequestsList)):
-    #     numReqRunningSums[i] = numTotalRequestsList[i] + (0 if i==0 else numReqRunningSums[i-1])
-    # numReqServedPerMinuteList = [ numReqRunningSums[i] / (i+1) for i in range(len(numTotalRequestsList))]
 
     # print('---------------------- resp1 ------------------------')
     # for datapoint in sortedResp1:
@@ -645,26 +686,18 @@ def displayCharts():
     #     print(datapoint)
     # print(len(sortedResp2))
 
-    # TODO: get stats from cloudwatch. Hardcoded so far #
-    # # numActiveNodesList = [(i&2)+1 for i in range(30)]
-    # # missRateList = [0.5 for i in range(30)]
-    # # hitRateList = [0.5 for i in range(30)]
-    # # numItemsList = [i for i in range(30)]
-    # # totalSizeList = [i for i in range(30)]
-    # # numReqServedPerMinuteList = [1 for i in range(30)]
-
     # Create a list to store the Plotly chart objects
     figs = []
     # x = [datetime.now(pytz.timezone('America/Toronto'))]
     # for i in range(29):
     #     x.append(x[-1] - timedelta(seconds=60))
     x_data = [
-        sorted([datapoint['Timestamp'] for datapoint in resp1['Datapoints']]),
-        sorted([datapoint['Timestamp'] for datapoint in resp2['Datapoints']]),
-        sorted([datapoint['Timestamp'] for datapoint in resp3['Datapoints']]),
-        sorted([datapoint['Timestamp'] for datapoint in resp4['Datapoints']]),
-        sorted([datapoint['Timestamp'] for datapoint in resp5['Datapoints']]),
-        sorted([datapoint['Timestamp'] for datapoint in resp2['Datapoints']])
+        [datapoint['Timestamp'] for datapoint in sortedResp1],
+        [datapoint['Timestamp'] for datapoint in sortedResp2],
+        [datapoint['Timestamp'] for datapoint in sortedResp2],
+        [datapoint['Timestamp'] for datapoint in sortedResp4],
+        [datapoint['Timestamp'] for datapoint in sortedResp5],
+        [datapoint['Timestamp'] for datapoint in sortedResp2]
     ]
     x_label = 'Time'
     y_data = [
@@ -694,7 +727,7 @@ def displayCharts():
                 xaxis_title=x_label, 
                 yaxis_title=name,
                 yaxis=dict(
-                    range=[0.0,1.0] 
+                    range=[0.0, 1.0] 
                 ),
                 width=800, 
                 height=500)
@@ -707,16 +740,28 @@ def displayCharts():
                     tickmode='linear',
                     tick0=0,
                     dtick=1,
-                    range=[0,8] 
+                    range=[0, 8] 
                 ),
                 width=800, 
                 height=500)
+        elif name == 'Total number of cache items' or name == "Number of requests":
+            fig.update_layout(
+                title=name,
+                xaxis_title=x_label,
+                yaxis_title=name,
+                yaxis=dict(
+                    tickmode='linear',
+                    tick0=0,
+                    dtick=1
+                ),
+                width=800, 
+                height=500)            
         else:
             fig.update_layout(
-                title=name, 
-                xaxis_title=x_label, 
+                title=name,
+                xaxis_title=x_label,
                 yaxis_title=name,
-                width=800, 
+                width=800,
                 height=500)
         figs.append(fig)
 
@@ -728,12 +773,65 @@ def displayCharts():
     # Wrap the HTML for each chart in a <div> tag with a unique ID
     chart_divs = ['''
         <head>
-            <title>Line Chart Example</title>
+            <title>Charts</title>
+            <!-- Load Bootstrap CSS -->
+            <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+            <!-- Bootstrap JS and jQuery -->
+            <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+            <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
             <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+            <style>
+                .navbar-vertical {
+                    background-color: #f8f8f8;
+                    border: 1px solid #ddd;
+                    padding: 20px;
+                    position: fixed;
+                    top: 0;
+                    bottom: 0;
+                    left: 0;
+                    width: 200px;
+                    overflow-y: auto;
+                }
+                .navbar-vertical .navbar-brand {
+                    font-weight: bold;
+                    font-size: 20px;
+                    margin-bottom: 20px;
+                }
+                .navbar-vertical .nav {
+                    margin-top: 20px;
+                }
+                .navbar-vertical .nav > li > a {
+                    padding: 10px 15px;
+                    font-size: 16px;
+                }
+                .navbar-vertical .nav > li > a:hover {
+                    background-color: #ddd;
+                }
+                nav a.active {
+                    color: #fff;
+                    background-color: #337ab7;
+                }                
+                .config {
+                    padding-left: 210px;
+                }
+            </style>
         </head>
+        <body>
+            <nav class="navbar navbar-vertical">
+                <div class="navbar-header">
+                    <a class="navbar-brand" href="/">Manager UI</a>
+                </div>
+                <ul class="nav navbar-nav">
+                    <li><a href="/displayCharts" class="active">Display Charts</a></li>
+                    <li><a href="/configureCache">Configure Cache</a></li>
+                    <li><a href="/configureCachePoolSizingMode">Configure Pool</a></li>
+                    <li><a href="/deletes">Clear Data</a></li>
+                </ul>
+            </nav>
+        </body>
     ''']
     for i, html in enumerate(chart_html):
-        chart_divs.append(f'<div id="chart{i+1}">{html}</div>')
+        chart_divs.append(f'<div class="config" id="chart{i+1}">{html}</div>')
 
     # Combine the chart <div> tags into a single HTML string
     html = ''.join(chart_divs)
@@ -752,9 +850,10 @@ def configureCachePoolSizingMode():
     numNodes = int(json_response["numNodes"])
     #numNodes = 1
     return render_template('configureCachePoolSizingMode.html', numNodes = numNodes)
-# @manager.route('/handleSubmitPool', methods=['GET', 'POST'])
-# def handleSubmitPool():
-#     requests.get(manager_url + '/api/configure_cache')
+
+@manager.route('/deletes', methods=['GET', 'POST'])
+def deletes():
+    return render_template('deletes.html')
 
 @manager.route('/deleteAllData', methods=['GET', 'POST'])
 def deleteAllData():
