@@ -74,7 +74,7 @@
                     </el-col>
                 </el-row>
             </el-tab-pane>
-            <el-tab-pane label="Keys Management" name="2" style="text-align: left; ">
+            <el-tab-pane label="Keys in RDS" name="2" style="text-align: left; ">
                 &nbsp;&nbsp;&nbsp;key value:
                 &nbsp;&nbsp;&nbsp;
                 <el-tooltip class="item" effect="dark" content="delete all the keys" placement="right-start">
@@ -100,7 +100,7 @@
                     </el-row>
                 </div>
             </el-tab-pane>
-            <el-tab-pane label="Memcache Management" name="3" style="text-align: left; ">
+            <!-- <el-tab-pane label="Memcache Management" name="3" style="text-align: left; ">
                 <h1>Mem-cache Parameters</h1>
                 <el-row>
                     <el-col :span="7">
@@ -182,7 +182,7 @@
                     <el-table-column prop="totalSize" label="totalSize(Bytes)" width="150">
                     </el-table-column>
                 </el-table>
-            </el-tab-pane>
+            </el-tab-pane> -->
         </el-tabs>
     </el-container>
 </template>
@@ -223,15 +223,46 @@ export default {
                 policy: '',
                 cacheMode: true
             },
-            tableData: []
+            tableData: [],
+            timer_10: null,
+            nodeNums: null
         }
     },
+    created(){
+        this.timer_10 = window.setInterval(() => {
+            setTimeout(this.polling(), 0);
+
+        }, 10)
+    },
+    destroyed(){
+        window.clearInterval(this.timer_10);
+    },
     methods: {
+        polling() {
+            axios
+                .get('/route/api/getNumNodes')
+                .then(res => {
+                    if (res.data) {
+                        console.log("retrieve node numbers:", res);
+                        if (this.nodeNums != res.data.numNodes) {
+                            this.$message.warning('The number of nodes has changed to ' + res.data.numNodes + ' !');
+                            this.nodeNums = res.data.numNodes;
+                        }
+                    }
+                    else {
+                        console.log("Fail to get node numbers!");
+                    }
+                })
+                .catch(error => {
+                    this.$message.warning('Fail to get node numbers!');
+                    console.error(error);
+                })
+        },
         handleTabClick(tab) {
             if (tab.index == 1) { //获取keys的配置
                 // const url = this.baseUrl + 'getKeys';
                 axios
-                    .post('/api/list_keys')
+                    .post('/route/allKeyDB')
                     .then(res => {
                         if (res.data) {
                             console.log("retrieve keys info:", res);
@@ -247,44 +278,44 @@ export default {
                         console.error(error);
                     })
             }
-            else if (tab.index == 2) {
-                // const url = this.baseUrl + 'params';
-                axios
-                    .get('/api/params')
-                    .then(res => {
-                        console.log(res.data);
-                        if (res.data) {
-                            let data = res.data
-                            this.cacheParams.capacity = data.size
-                            this.cacheParams.policy = (data.policy == 'RR' ? 'Random Replacement' : 'Least Recently Used');
-                            this.cacheParams.cacheMode = (data.operation == 'true' ? true : false)
-                        } else {
-                            this.$message.warning('Cache configuration\'s params are empty!');
-                            console.error('Cache configuration\'s params are empty');
-                        }
-                    })
-                    .catch(error => {
-                        this.$message.warning('Fail to get cache configuration!');
-                        console.error(error);
-                    })
-                axios.get('/api/requestCurrentStat')
-                    .then(res => {
-                        console.log(res.data);
-                        let data = res.data;
+            // else if (tab.index == 2) {
+            //     // const url = this.baseUrl + 'params';
+            //     axios
+            //         .get('/api/params')
+            //         .then(res => {
+            //             console.log(res.data);
+            //             if (res.data) {
+            //                 let data = res.data
+            //                 this.cacheParams.capacity = data.size
+            //                 this.cacheParams.policy = (data.policy == 'RR' ? 'Random Replacement' : 'Least Recently Used');
+            //                 this.cacheParams.cacheMode = (data.operation == 'true' ? true : false)
+            //             } else {
+            //                 this.$message.warning('Cache configuration\'s params are empty!');
+            //                 console.error('Cache configuration\'s params are empty');
+            //             }
+            //         })
+            //         .catch(error => {
+            //             this.$message.warning('Fail to get cache configuration!');
+            //             console.error(error);
+            //         })
+            //     axios.get('/api/requestCurrentStat')
+            //         .then(res => {
+            //             console.log(res.data);
+            //             let data = res.data;
 
-                        let hitRate = data.hitRate;
-                        for (let index = 0; index < hitRate.length; index++) {
-                            let tableItem = {};
-                            tableItem['time'] = index * 5;
-                            tableItem['hitRate'] = data.hitRate[index];
-                            tableItem['missRate'] = data.missRate[index];
-                            tableItem['numItems'] = data.numItems[index];
-                            tableItem['numReqs'] = data.numReqs[index];
-                            tableItem['totalSize'] = data.totalSize[index];
-                            this.tableData.push(tableItem);
-                        }
-                    })
-            }
+            //             let hitRate = data.hitRate;
+            //             for (let index = 0; index < hitRate.length; index++) {
+            //                 let tableItem = {};
+            //                 tableItem['time'] = index * 5;
+            //                 tableItem['hitRate'] = data.hitRate[index];
+            //                 tableItem['missRate'] = data.missRate[index];
+            //                 tableItem['numItems'] = data.numItems[index];
+            //                 tableItem['numReqs'] = data.numReqs[index];
+            //                 tableItem['totalSize'] = data.totalSize[index];
+            //                 this.tableData.push(tableItem);
+            //             }
+            //         })
+            // }
         },
         handlePicRemove() {
             console.log(this.$refs.child.uploadFiles);
@@ -319,7 +350,7 @@ export default {
                 let form = new FormData()
                 form.append('key', this.uploadInfo.key);
                 form.append('file', JSON.stringify(this.$refs.child.uploadFiles[0]))
-                axios.post('/api/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+                axios.post('/route/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } })
                     .then(res => {
                         console.log('upload request return info:', res);
                         this.uploadInfo.key = '';
@@ -347,7 +378,10 @@ export default {
                 // let url = '/api/key/' + this.retrieveInfo.key
                 axios({
                     method: 'POST',
-                    url: '/api/key/' + this.retrieveInfo.key
+                    url: '/route/api/getImage',
+                    data: {
+                        'key': this.retrieveInfo.key
+                    }
                 }).then(res => {
                     console.log('retrieve image info: ', res.data);
                     if (res.status == 200) {
@@ -372,76 +406,76 @@ export default {
                 })
             }
         },
-        deleteKey(key, type) {
-            if (type == 1) {//单个删除
-                console.log("The key about to be deleted is: ", key);
-            } else if (type == 2) {
-                console.log("Delete all the keys");
-            }
-            axios({
-                url: '/api/delete_all',
-                data: { 'key': key },
-                method: 'POST'
-            })
-                .then(res => {
-                    console.log(res);
-                    if (res.data != 'Fail') {
-                        this.keysList = [];
-                    } else {
-                        this.$message.warning('Fail to delete keys!');
-                    }
-                })
-                .catch(error => {
-                    this.$message.warning('Fail to delete or retrieve keys!');
-                    console.error(error);
-                })
-        },
-        clearCache() {
-            console.log("clear cache");
-            axios({
-                url: '/api/clear',
-                method: 'POST'
-            })
-                .then(res => {
-                    console.log(res);
-                })
-                .catch(error => {
-                    this.$message.warning('Fail to clear caches!');
-                    console.error(error);
-                })
-        },
-        submitParams() {
-            console.log('Changing mem-cache parameters into:', this.cacheParams);
-            //todo：提交修改
-            let params = {
-                'size': this.cacheParams.capacity,
-                'policy': this.cacheParams.policy == 'Least Recently Used' ? 'LRU' : 'RR',
-                'operation': '' + this.cacheParams.cacheMode + ''
-            }
-            axios({
-                method: 'PUT',
-                url: '/api/params',
-                data: { 'params': params }
-            })
-                .then(res => {
-                    console.log(res.data);
-                    if (res.data) {
-                        let data = res.data
-                        this.cacheParams.capacity = data.size
-                        this.cacheParams.policy = (data.policy == 0 ? 'Random Replacement' : 'Least Recently Used');
-                    } else {
-                        this.$message.warning('Cache configuration\'s params are empty!');
-                        console.error('Cache configuration\'s params are empty');
-                    }
-                })
-                .catch(error => {
-                    this.$message.warning('Fail to change cache configuration!');
-                    console.error(error);
-                })
-        },
+        // deleteKey(key, type) {
+        //     if (type == 1) {//单个删除
+        //         console.log("The key about to be deleted is: ", key);
+        //     } else if (type == 2) {
+        //         console.log("Delete all the keys");
+        //     }
+        //     axios({
+        //         url: '/api/delete_all',
+        //         data: { 'key': key },
+        //         method: 'POST'
+        //     })
+        //         .then(res => {
+        //             console.log(res);
+        //             if (res.data != 'Fail') {
+        //                 this.keysList = [];
+        //             } else {
+        //                 this.$message.warning('Fail to delete keys!');
+        //             }
+        //         })
+        //         .catch(error => {
+        //             this.$message.warning('Fail to delete or retrieve keys!');
+        //             console.error(error);
+        //         })
+        // },
+        // clearCache() {
+        //     console.log("clear cache");
+        //     axios({
+        //         url: '/api/clear',
+        //         method: 'POST'
+        //     })
+        //         .then(res => {
+        //             console.log(res);
+        //         })
+        //         .catch(error => {
+        //             this.$message.warning('Fail to clear caches!');
+        //             console.error(error);
+        //         })
+        // },
+        // submitParams() {
+        //     console.log('Changing mem-cache parameters into:', this.cacheParams);
+        //     //todo：提交修改
+        //     let params = {
+        //         'size': this.cacheParams.capacity,
+        //         'policy': this.cacheParams.policy == 'Least Recently Used' ? 'LRU' : 'RR',
+        //         'operation': '' + this.cacheParams.cacheMode + ''
+        //     }
+        //     axios({
+        //         method: 'PUT',
+        //         url: '/api/params',
+        //         data: { 'params': params }
+        //     })
+        //         .then(res => {
+        //             console.log(res.data);
+        //             if (res.data) {
+        //                 let data = res.data
+        //                 this.cacheParams.capacity = data.size
+        //                 this.cacheParams.policy = (data.policy == 0 ? 'Random Replacement' : 'Least Recently Used');
+        //             } else {
+        //                 this.$message.warning('Cache configuration\'s params are empty!');
+        //                 console.error('Cache configuration\'s params are empty');
+        //             }
+        //         })
+        //         .catch(error => {
+        //             this.$message.warning('Fail to change cache configuration!');
+        //             console.error(error);
+        //         })
+        // },
         showCacheKeys() {
             axios
-                .get('/api/allKeyMemcache')
+                .get('/route/api/list_keys')
                 .then(res => {
                     if (res.data) {
                         console.log("retrieve keys info:", res);
