@@ -9,7 +9,11 @@ import requests
 
 memcache_pool_url = 'http://127.0.0.1:5002'
 
-cloudwatch = boto3.client('cloudwatch')
+cloudwatch = boto3.client('cloudwatch',
+                          region_name='us-east-1',
+                          aws_access_key_id = 'AKIAVW4WDBYWC5TM7LHC',
+                          aws_secret_access_key = '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'
+                          )
 thresholdAndRatio = {
     'max': 0.8,
     'min': 0.2
@@ -73,8 +77,12 @@ def monitorMissRate():
             Unit='None',
             Statistics=['Sum'],
         )
+    except IndexError:
+        totalNum = 0
+        print('the metric-totalNum is empty')
+    else:
         totalNum = totalRequests['Datapoints'][0]['Sum']
-
+    try:
         missRequests = cloudwatch.get_metric_statistics(
             Period=1 * 60,
             StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
@@ -84,17 +92,23 @@ def monitorMissRate():
             Unit='None',
             Statistics=['Sum'],
         )
-        MissNum = missRequests['Datapoints'][0]['Sum']
     except IndexError:
-        print('the metric is empty')
+        missNum = 0
+        print('the metric-missNum is empty')
     else:
-        missRate = MissNum / totalNum
-        if missRate > thresholdAndRatio.get('max'):
-            print('the missRate', missRate, 'is higher than the max threshold', thresholdAndRatio.get('max'))
-            requests.post(memcache_pool_url + '/auto_change', params={'change': 'grow'})
-        if missRate < thresholdAndRatio.get('min'):
-            print('the missRate', missRate, ' is lower than the min threshold', thresholdAndRatio.get('min'))
-            requests.post(memcache_pool_url + '/auto_change', params={'change': 'shrink'})
+        missNum = missRequests['Datapoints'][0]['Sum']
+
+    if totalNum != 0:
+        missRate = missNum / totalNum
+    else:
+        print('the metric-totalNum is 0')
+        missRate = 0.0
+    if missRate > thresholdAndRatio.get('max'):
+        print('the missRate', missRate, 'is higher than the max threshold', thresholdAndRatio.get('max'))
+        requests.post(memcache_pool_url + '/auto_change', params={'change': 'grow'})
+    if missRate < thresholdAndRatio.get('min'):
+        print('the missRate', missRate, ' is lower than the min threshold', thresholdAndRatio.get('min'))
+        requests.post(memcache_pool_url + '/auto_change', params={'change': 'shrink'})
 
 
 autoScaler.run('0.0.0.0', 5003, debug=False)
