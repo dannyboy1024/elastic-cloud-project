@@ -109,9 +109,9 @@ def uploadImage():
     
     # pending saving to rds
     if db.readFileInfo(key) == None:
-        db.insertFileInfo(FILEINFO(key, filename))
+        db.insertFileInfo(FILEINFO(key, filename, imageSize))
     else:
-        db.updFileInfo(FILEINFO(key, filename))
+        db.updFileInfo(FILEINFO(key, filename, imageSize))
     
     resp = OrderedDict([("success", "true"), ("key", key)])
     response = manager.response_class(
@@ -152,9 +152,9 @@ def upload_autotest():
     
     # pending saving to rds
     if db.readFileInfo(key) == None:
-        db.insertFileInfo(FILEINFO(key, filename))
+        db.insertFileInfo(FILEINFO(key, filename, imageSize))
     else:
-        db.updFileInfo(FILEINFO(key, filename))
+        db.updFileInfo(FILEINFO(key, filename, imageSize))
 
     resp = OrderedDict([("success", "true"), ("key", key)])
     response = manager.response_class(
@@ -176,6 +176,7 @@ def getFromS3():
     #pending rds getting filename
     fileInfo = db.readFileInfo(key)
     filename = fileInfo.location
+    fileSize = fileInfo.size
     checkFile = s3client.list_objects_v2(Bucket=bucket_name, Prefix=filename)
     if "Contents" in checkFile:
         full_file_path = os.path.join(os_file_path, filename)
@@ -183,7 +184,8 @@ def getFromS3():
         value = Path(full_file_path).read_text()
         resp = {
             "success" : "true", 
-            "value": value
+            "value": value, 
+            "size": fileSize
         }
         response = manager.response_class(
             response=json.dumps(resp),
@@ -226,11 +228,18 @@ def getImage():
         else:
             json_response = res.json()
             value = json_response["value"]
+            size = json_response["size"]
             content = base64.b64decode(value)
             resp = OrderedDict()
             resp["success"] = "true"
             resp["key"] = key
             resp["content"] = bytes.decode(content)
+            requestJson = {
+                'key': key,
+                'value': value, 
+                'size': size
+            }
+            requests.post(memcache_pool_url + '/put', params=requestJson)
             response = manager.response_class(
                 response=json.dumps(resp),
                 status=200,
@@ -279,11 +288,18 @@ def retrieve_autotest(key_value):
         else:
             json_response = res.json()
             value = json_response["value"]
+            size = json_response["size"]
             content = base64.b64decode(value)
             resp = OrderedDict()
             resp["success"] = "true"
             resp["key"] = key_value
             resp["content"] = bytes.decode(content)
+            requestJson = {
+                'key': key_value,
+                'value': value, 
+                'size': size
+            }
+            requests.post(memcache_pool_url + '/put', params=requestJson)
             response = manager.response_class(
                 response=json.dumps(resp),
                 status=200,
@@ -417,7 +433,7 @@ def configure_memcache():
     #Pending: if mode is auto specified, need to notify the auto scaler
 
     requests.post(memcache_pool_url + '/configure', params=requestJson)
-    requests.post(autoscaler_url, + '/autoScalarConfig', params=requestJson)
+    requests.post(autoscaler_url + '/autoScalarConfig', params=requestJson)
     resp = {"success": "true"}
     for key in requestJson:
         resp[key] = requestJson[key]
@@ -468,34 +484,51 @@ def getRate():
             return response
         
         # get stats from cloudwatch
-        cloudwatch = boto3.client('cloudwatch')
-        totalRequests = cloudwatch.get_metric_statistics(
-            Period=1 * 60,
-            StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
-            EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
-            MetricName='numTotalRequests',
-            Namespace='Cache Stats',
-            Unit='None',
-            Statistics=['Sum'],
-        )
-        totalNum = totalRequests['Datapoints'][0]['Sum']
-
-        missRequests = cloudwatch.get_metric_statistics(
-            Period=1 * 60,
-            StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
-            EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
-            MetricName='numMissRequests',
-            Namespace='Cache Stats',
-            Unit='None',
-            Statistics=['Sum'],
-        )
-        missNum = missRequests['Datapoints'][0]['Sum']
+        #cloudwatch = boto3.client('cloudwatch')
+        cloudwatch = boto3.client( 'cloudwatch', 
+                                  region_name='us-east-1', 
+                                  aws_access_key_id = 'AKIAVW4WDBYWC5TM7LHC', 
+                                  aws_secret_access_key = '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'
+                                  )
+        try:
+            totalRequests = cloudwatch.get_metric_statistics(
+                Period=1 * 60,
+                StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
+                EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
+                MetricName='numTotalRequests',
+                Namespace='Cache Stats',
+                Unit='None',
+                Statistics=['Sum'],
+            )
+        except IndexError:
+            totalNum = 0
+            print('the metric-totalNum is empty')
+        else:
+            totalNum = totalRequests['Datapoints'][0]['Sum']
+            print("totalNum =", totalNum)
+        try:
+            missRequests = cloudwatch.get_metric_statistics(
+                Period=1 * 60,
+                StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
+                EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
+                MetricName='numMissRequests',
+                Namespace='Cache Stats',
+                Unit='None',
+                Statistics=['Sum'],
+            )
+        except IndexError:
+            missNum = 0
+            print('the metric-missNum is empty')
+        else:
+            missNum = missRequests['Datapoints'][0]['Sum']
+            print("missNum =", missNum)
 
         rate = 0.0
-        if requestJson["rate"] == "miss":
-            rate = missNum / totalNum
-        else:
-            rate = (totalNum - missNum) / totalNum
+        if totalNum > 0:
+            if requestJson["rate"] == "miss":
+                rate = missNum / totalNum
+            else:
+                rate = (totalNum - missNum) / totalNum
         
         resp = {
             "success": "true",
@@ -505,7 +538,7 @@ def getRate():
                  
         response = manager.response_class(
             response=json.dumps(resp),
-            status=400,
+            status=200,
             mimetype='application/json'
         )
         return response
@@ -540,6 +573,22 @@ def list_keys():
         status=200,
         mimetype='application/json'
     )
+    return response
+
+@manager.route('/allKeyDB', methods=['POST'])
+def allKeyDB():
+    """
+    Display all the keys that stored in the database
+    No inputs required
+    """
+    allKeys = db.readAllFileKeys()
+
+    response = manager.response_class(
+        response=json.dumps(allKeys),
+        status=200,
+        mimetype='application/json'
+    )
+
     return response
 
 #####################################
@@ -797,8 +846,9 @@ def configureCache():
 @manager.route('/configureCachePoolSizingMode', methods=['GET', 'POST'])
 def configureCachePoolSizingMode():
     res = requests.post(memcache_pool_url + '/getNumNodes')
-    numNodes = int(res.content)
-    # numNodes = 1
+    json_response = res.json()
+    numNodes = int(json_response["numNodes"])
+    #numNodes = 1
     return render_template('configureCachePoolSizingMode.html', numNodes = numNodes)
 
 @manager.route('/deletes', methods=['GET', 'POST'])
