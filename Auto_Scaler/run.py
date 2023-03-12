@@ -63,35 +63,38 @@ def autoScalarConfig():
 # Monitor miss rate through AWS CloudWatch API(every 1 minute)
 # If the missRate is lower or higher than the min or max threshold, call resizeMemPool func
 def monitorMissRate():
-    totalRequests = cloudwatch.get_metric_statistics(
-        Period=1 * 60,
-        StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
-        EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
-        MetricName='numTotalRequests',
-        Namespace='Cache Stats',
-        Unit='None',
-        Statistics=['Sum'],
-    )
-    totalNum = totalRequests['Datapoints'][0]['Sum']
+    try:
+        totalRequests = cloudwatch.get_metric_statistics(
+            Period=1 * 60,
+            StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
+            EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
+            MetricName='numTotalRequests',
+            Namespace='Cache Stats',
+            Unit='None',
+            Statistics=['Sum'],
+        )
+        totalNum = totalRequests['Datapoints'][0]['Sum']
 
-    missRequests = cloudwatch.get_metric_statistics(
-        Period=1 * 60,
-        StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
-        EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
-        MetricName='numMissRequests',
-        Namespace='Cache Stats',
-        Unit='None',
-        Statistics=['Sum'],
-    )
-    MissNum = missRequests['Datapoints'][0]['Sum']
-
-    missRate = MissNum / totalNum
-    if missRate > thresholdAndRatio.get('max'):
-        print('the missRate', missRate, 'is higher than the max threshold', thresholdAndRatio.get('max'))
-        requests.post(memcache_pool_url + '/auto_change', params={'change': 'grow'})
-    if missRate < thresholdAndRatio.get('min'):
-        print('the missRate', missRate, ' is lower than the min threshold', thresholdAndRatio.get('min'))
-        requests.post(memcache_pool_url + '/auto_change', params={'change': 'shrink'})
+        missRequests = cloudwatch.get_metric_statistics(
+            Period=1 * 60,
+            StartTime=datetime.utcnow() - timedelta(seconds=1 * 60),
+            EndTime=datetime.utcnow() - timedelta(seconds=0 * 60),
+            MetricName='numMissRequests',
+            Namespace='Cache Stats',
+            Unit='None',
+            Statistics=['Sum'],
+        )
+        MissNum = missRequests['Datapoints'][0]['Sum']
+    except IndexError:
+        print('the metric is empty')
+    else:
+        missRate = MissNum / totalNum
+        if missRate > thresholdAndRatio.get('max'):
+            print('the missRate', missRate, 'is higher than the max threshold', thresholdAndRatio.get('max'))
+            requests.post(memcache_pool_url + '/auto_change', params={'change': 'grow'})
+        if missRate < thresholdAndRatio.get('min'):
+            print('the missRate', missRate, ' is lower than the min threshold', thresholdAndRatio.get('min'))
+            requests.post(memcache_pool_url + '/auto_change', params={'change': 'shrink'})
 
 
 autoScaler.run('0.0.0.0', 5003, debug=False)
