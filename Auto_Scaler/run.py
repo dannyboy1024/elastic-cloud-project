@@ -6,14 +6,14 @@ import sched
 import time
 from flask import request, json
 import requests
-import threading
+from threading import Timer
 
 memcache_pool_url = 'http://127.0.0.1:5002'
 
 cloudwatch = boto3.client('cloudwatch',
                           region_name='us-east-1',
-                          aws_access_key_id = 'AKIAVW4WDBYWC5TM7LHC',
-                          aws_secret_access_key = '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'
+                          aws_access_key_id='AKIAVW4WDBYWC5TM7LHC',
+                          aws_secret_access_key='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'
                           )
 thresholdAndRatio = {
     'max': 0.8,
@@ -21,15 +21,20 @@ thresholdAndRatio = {
 }
 mode = 'manual'
 
-#scheduler = sched.scheduler(time.time, time.sleep)
+
+# scheduler = sched.scheduler(time.time, time.sleep)
 
 
 # run the monitor function every 60 seconds
-def monitor(inc):
+def monitor():
+    monitorMissRate()
     if mode == 'auto':
-        monitorMissRate()
-        threading.Thread(target=monitor,args=[inc]).start()
+        loop_monitor()
 
+
+def loop_monitor():
+    t = Timer(60, monitor())
+    t.start()
 
 
 @autoScaler.route('/autoScalarConfig', methods=['POST'])
@@ -41,22 +46,22 @@ def autoScalarConfig():
             mode = 'manual'
         elif operateMode == 'auto':
             mode = 'auto'
-            threading.Thread(target=monitor).start()
-            #scheduler.enter(0, 0, monitor, (60,))
-            #scheduler.run()
+            loop_monitor()
+            # scheduler.enter(0, 0, monitor, (60,))
+            # scheduler.run()
     global thresholdAndRatio
     if 'maxMiss' in request.args:
         arg_ratio = request.args.get('maxMiss')
-        if arg_ratio != "": 
+        if arg_ratio != "":
             maxMiss = float(arg_ratio)
             thresholdAndRatio['max'] = maxMiss
     if 'minMiss' in request.args:
         arg_ratio = request.args.get('minMiss')
-        if arg_ratio != "": 
+        if arg_ratio != "":
             minMiss = float(arg_ratio)
             thresholdAndRatio['min'] = minMiss
     resp = {
-        "success" : "true"
+        "success": "true"
     }
     response = autoScaler.response_class(
         response=json.dumps(resp),
