@@ -4,7 +4,7 @@ import boto3
 from datetime import datetime, timedelta
 import sched
 import time
-from flask import request
+from flask import request, json
 import requests
 
 memcache_pool_url = 'http://127.0.0.1:5002'
@@ -39,11 +39,24 @@ def autoScalarConfig():
             scheduler.run()
     global thresholdAndRatio
     if 'maxMiss' in request.args:
-        maxMiss = float(request.args.get('maxMiss'))
-        thresholdAndRatio['max'] = maxMiss
+        arg_ratio = request.args.get('maxMiss')
+        if arg_ratio != "": 
+            maxMiss = float(arg_ratio)
+            thresholdAndRatio['max'] = maxMiss
     if 'minMiss' in request.args:
-        minMiss = float(request.args.get('minMiss'))
-        thresholdAndRatio['min'] = minMiss
+        arg_ratio = request.args.get('minMiss')
+        if arg_ratio != "": 
+            minMiss = float(arg_ratio)
+            thresholdAndRatio['min'] = minMiss
+    resp = {
+        "success" : "true"
+    }
+    response = autoScaler.response_class(
+        response=json.dumps(resp),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
 
 
 # Monitor miss rate through AWS CloudWatch API(every 1 minute)
@@ -80,4 +93,4 @@ def monitorMissRate():
         requests.post(memcache_pool_url + '/auto_change', params={'change': 'shrink'})
 
 
-autoScaler.run('0.0.0.0', 5003, debug=True)
+autoScaler.run('0.0.0.0', 5003, debug=False)
