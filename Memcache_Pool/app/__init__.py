@@ -3,6 +3,7 @@ import boto3
 from flask import Flask
 from flask_cors import CORS
 import requests
+import math
 
 ec2_resource = None
 
@@ -148,7 +149,7 @@ class memcache_pool_tracking:
                     del self.all_keys_with_node[key]
             self.num_items = len(self.all_keys_with_node)
             self.update_key_tracking()
-            
+
             for instance_id in self.instances_ip:
                 if instance_id not in self.active_instances:
                     instance_ip = self.instances_ip[instance_id]
@@ -206,10 +207,10 @@ class memcache_pool_tracking:
     def auto_change(self, change): 
         self.scaling_mode = "auto"
         if change == "grow" and self.num_active_instances < self.maximum_possible_instances :
-            new_num_instance = int(self.num_active_instances * self.auto_expand)
+            new_num_instance = int(math.ceil(self.num_active_instances * self.auto_expand))
+            if new_num_instance >= self.maximum_possible_instances:
+                new_num_instance = self.maximum_possible_instances
             if new_num_instance != self.num_active_instances:
-                if new_num_instance >= self.maximum_possible_instances :
-                    new_num_instance = self.maximum_possible_instances 
                 for instance_num in range(new_num_instance-self.num_active_instances):
                     new_index = self.num_active_instances + instance_num
                     new_instance = self.available_instances[new_index]
@@ -217,10 +218,10 @@ class memcache_pool_tracking:
                 self.num_active_instances = new_num_instance
                 self.rebalance_nodes()
         elif change == "shrink" and self.num_active_instances > 1:
-            new_num_instance = int(self.num_active_instances * self.auto_shrink)
+            new_num_instance = int(math.floor(self.num_active_instances * self.auto_shrink))
+            if new_num_instance <= 1:
+                new_num_instance = 1
             if new_num_instance != self.num_active_instances:
-                if new_num_instance <= 1:
-                    new_num_instance = 1
                 for instance_num in range(self.num_active_instances-new_num_instance):
                     shrink_index = self.num_active_instances - 1 - instance_num
                     shrink_instance = self.available_instances[shrink_index]
