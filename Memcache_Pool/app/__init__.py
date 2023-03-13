@@ -148,6 +148,7 @@ class memcache_pool_tracking:
                     del self.all_keys_with_node[key]
             self.num_items = len(self.all_keys_with_node)
             self.update_key_tracking()
+            
             for instance_id in self.instances_ip:
                 if instance_id not in self.active_instances:
                     instance_ip = self.instances_ip[instance_id]
