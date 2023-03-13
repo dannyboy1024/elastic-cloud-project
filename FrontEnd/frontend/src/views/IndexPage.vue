@@ -236,7 +236,7 @@ export default {
             },
             tableData: [],
             timer_10: null,
-            nodeNums: null
+            nodeNums: 1
         }
     },
     created() {
