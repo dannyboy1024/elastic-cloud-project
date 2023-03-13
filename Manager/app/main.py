@@ -82,6 +82,41 @@ provision_aws()
 def main():
     return render_template("main.html")
 
+@manager.route('/uploadToDB', methods=['POST'])
+def uploadToDB():
+    """
+    Upload the key to the database
+    Store the value as a file in the local file system, key as filename
+    key: string
+    value: string (For images, base64 encoded string)
+    """
+    key = request.args.get('key')
+    value = request.args.get('value')
+    size = request.args.get('size')
+    filename  = request.args.get('name')
+
+    full_file_path = os.path.join(os_file_path, filename)
+    if os.path.isfile(full_file_path):
+        os.remove(full_file_path)
+    with open(full_file_path, 'w') as fp:
+        fp.write(value)
+    s3client.upload_file(full_file_path, bucket_name, filename)
+
+    if db.readFileInfo(key) == None:
+        db.insertFileInfo(FILEINFO(key, filename, size))
+    else:
+        db.updFileInfo(FILEINFO(key, filename, size))
+
+    resp = {
+        "success" : "true"
+    }
+    response = manager.response_class(
+        response=json.dumps(resp),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
 @manager.route('/upload', methods=['POST'])
 def uploadImage():
     # upload image with key
@@ -90,28 +125,18 @@ def uploadImage():
     key = data.get('key')
     imageContent = data.get('file')
     value = base64.b64encode(str(imageContent).encode())
+    
     imageSize = eval(imageContent).get('size')
     print(eval(imageContent).get('name'))
+    filename  = eval(imageContent).get('name')
     requestJson = {
         'key': key,
         'value': value,
         'size': imageSize, 
-        'name': eval(imageContent).get('name')
+        'name': filename
     }
     requests.post(memcache_pool_url + '/put', params=requestJson)
-    filename  = request.args.get('name')
-    full_file_path = os.path.join(os_file_path, filename)
-    if os.path.isfile(full_file_path):
-        os.remove(full_file_path)
-    with open(full_file_path, 'wb') as fp:
-        fp.write(value)
-    s3client.upload_file(full_file_path, bucket_name, filename)
-    
-    # pending saving to rds
-    if db.readFileInfo(key) == None:
-        db.insertFileInfo(FILEINFO(key, filename, imageSize))
-    else:
-        db.updFileInfo(FILEINFO(key, filename, imageSize))
+    requests.post(manager_url + '/uploadToDB', params=requestJson)
     
     resp = OrderedDict([("success", "true"), ("key", key)])
     response = manager.response_class(
@@ -138,23 +163,11 @@ def upload_autotest():
     requestJson = {
         'key': key,
         'value': encodedImage, 
-        'size': imageSize
+        'size': imageSize,
+        'name': image.filename
     }
     requests.post(memcache_pool_url + '/put', params=requestJson)
-    value = encodedImage
-    filename  = image.filename
-    full_file_path = os.path.join(os_file_path, filename)
-    if os.path.isfile(full_file_path):
-        os.remove(full_file_path)
-    with open(full_file_path, 'wb') as fp:
-        fp.write(value)
-    s3client.upload_file(full_file_path, bucket_name, filename)
-    
-    # pending saving to rds
-    if db.readFileInfo(key) == None:
-        db.insertFileInfo(FILEINFO(key, filename, imageSize))
-    else:
-        db.updFileInfo(FILEINFO(key, filename, imageSize))
+    requests.post(manager_url + '/uploadToDB', params=requestJson)
 
     resp = OrderedDict([("success", "true"), ("key", key)])
     response = manager.response_class(
@@ -175,38 +188,46 @@ def getFromS3():
 
     #pending rds getting filename
     fileInfo = db.readFileInfo(key)
-    filename = fileInfo.location
-    fileSize = fileInfo.size
-    checkFile = s3client.list_objects_v2(Bucket=bucket_name, Prefix=filename)
-    if "Contents" in checkFile:
-        full_file_path = os.path.join(os_file_path, filename)
-        s3client.download_file(bucket_name, filename, full_file_path)
-        value = Path(full_file_path).read_text()
-        resp = {
-            "success" : "true", 
-            "value": value, 
-            "size": fileSize
-        }
-        response = manager.response_class(
-            response=json.dumps(resp),
-            status=200,
-            mimetype='application/json'
-        )
+    if fileInfo != None: 
+        filename = fileInfo.location
+        fileSize = fileInfo.size
+        checkFile = s3client.list_objects_v2(Bucket=bucket_name, Prefix=filename)
+        if "Contents" in checkFile:
+            full_file_path = os.path.join(os_file_path, filename)
+            s3client.download_file(bucket_name, filename, full_file_path)
+            value = Path(full_file_path).read_text()
+            resp = {
+                "success" : "true", 
+                "value": value, 
+                "size": fileSize
+            }
+            response = manager.response_class(
+                response=json.dumps(resp),
+                status=200,
+                mimetype='application/json'
+            )
+        else:
+            response = manager.response_class(
+                response=json.dumps("File Not Found"),
+                status=400,
+                mimetype='application/json'
+            )
     else:
+        print("Not found in DB")
         response = manager.response_class(
-            response=json.dumps("File Not Found"),
+            response=json.dumps("Not found in DB"),
             status=400,
             mimetype='application/json'
         )
 
     return response
 
-@manager.route('/api/getImage', methods=['POST'])
-def getImage():
+@manager.route('/key/<key_value>', methods=['POST'])
+def getImage(key_value):
+    # get, upload image with key
     # retrieve image
-    key = request.form.get('key')
     requestJson = {
-        'key': key
+        'key': key_value
     }
     res = requests.post(memcache_pool_url + '/getImage', params=requestJson)
     if res.status_code == 400:
@@ -232,10 +253,10 @@ def getImage():
             content = base64.b64decode(value)
             resp = OrderedDict()
             resp["success"] = "true"
-            resp["key"] = key
+            resp["key"] = key_value
             resp["content"] = bytes.decode(content)
             requestJson = {
-                'key': key,
+                'key': key_value,
                 'value': value, 
                 'size': size
             }
@@ -253,7 +274,7 @@ def getImage():
         content = base64.b64decode(value)
         resp = OrderedDict()
         resp["success"] = "true"
-        resp["key"] = key
+        resp["key"] = key_value
         resp["content"] = bytes.decode(content)
         response = manager.response_class(
             response=json.dumps(resp),
