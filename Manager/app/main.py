@@ -699,9 +699,12 @@ def displayCharts():
     sortedResp5 = sortedResp5[::12][1:]
     totalSizeList = [datapoint['Maximum'] for datapoint in sortedResp5]
 
-
     missRateList      = [ (numMissRequestsList[i] / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
-    hitRateList       = [ (numTotalRequestsList[i] - numMissRequestsList[i] / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
+    hitRateList       = [ ((numTotalRequestsList[i] - numMissRequestsList[i]) / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
+    
+    # print(missRateList)
+    # print(hitRateList)
+    # print(numTotalRequestsList)
 
     # print('---------------------- resp1 ------------------------')
     # for datapoint in sorted(resp1['Datapoints'], key=sort_by_timeStamp):
@@ -714,13 +717,15 @@ def displayCharts():
 
     # Create a list to store the Plotly chart objects
     figs = []
+    # set the timezone for Toronto
+    toronto_tz = pytz.timezone('America/Toronto')
     x_data = [
-        [datapoint['Timestamp'] for datapoint in sortedResp1],
-        [datapoint['Timestamp'] for datapoint in sortedResp2],
-        [datapoint['Timestamp'] for datapoint in sortedResp2],
-        [datapoint['Timestamp'] for datapoint in sortedResp4],
-        [datapoint['Timestamp'] for datapoint in sortedResp5],
-        [datapoint['Timestamp'] for datapoint in sortedResp2]
+        [datapoint['Timestamp'].replace(tzinfo=pytz.utc).astimezone(toronto_tz) for datapoint in sortedResp1],
+        [datapoint['Timestamp'].replace(tzinfo=pytz.utc).astimezone(toronto_tz) for datapoint in sortedResp2],
+        [datapoint['Timestamp'].replace(tzinfo=pytz.utc).astimezone(toronto_tz) for datapoint in sortedResp2],
+        [datapoint['Timestamp'].replace(tzinfo=pytz.utc).astimezone(toronto_tz) for datapoint in sortedResp4],
+        [datapoint['Timestamp'].replace(tzinfo=pytz.utc).astimezone(toronto_tz) for datapoint in sortedResp5],
+        [datapoint['Timestamp'].replace(tzinfo=pytz.utc).astimezone(toronto_tz) for datapoint in sortedResp2]
     ]
     x_label = 'Time'
     y_data = [
@@ -767,18 +772,16 @@ def displayCharts():
                 ),
                 width=800, 
                 height=500)
-        elif name == 'Total number of cache items' or name == "Number of requests":
+        elif name == 'Total number of cache items' or name == "Number of requests" or name == "Total size of cache items (MB)":
             fig.update_layout(
                 title=name,
                 xaxis_title=x_label,
                 yaxis_title=name,
                 yaxis=dict(
-                    tickmode='linear',
-                    tick0=0,
-                    dtick=1
+                    range=[0, None]
                 ),
                 width=800, 
-                height=500)            
+                height=500)          
         else:
             fig.update_layout(
                 title=name,
