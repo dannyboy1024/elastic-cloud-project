@@ -82,6 +82,41 @@ provision_aws()
 def main():
     return render_template("main.html")
 
+@manager.route('/uploadToDB', methods=['POST'])
+def uploadToDB():
+    """
+    Upload the key to the database
+    Store the value as a file in the local file system, key as filename
+    key: string
+    value: string (For images, base64 encoded string)
+    """
+    key = request.args.get('key')
+    value = request.args.get('value')
+    size = request.args.get('size')
+    filename  = request.args.get('name')
+
+    full_file_path = os.path.join(os_file_path, filename)
+    if os.path.isfile(full_file_path):
+        os.remove(full_file_path)
+    with open(full_file_path, 'w') as fp:
+        fp.write(value)
+    s3client.upload_file(full_file_path, bucket_name, filename)
+
+    if db.readFileInfo(key) == None:
+        db.insertFileInfo(FILEINFO(key, filename, size))
+    else:
+        db.updFileInfo(FILEINFO(key, filename, size))
+
+    resp = {
+        "success" : "true"
+    }
+    response = manager.response_class(
+        response=json.dumps(resp),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
 @manager.route('/upload', methods=['POST'])
 def uploadImage():
     # upload image with key
@@ -90,6 +125,7 @@ def uploadImage():
     key = data.get('key')
     imageContent = data.get('file')
     value = base64.b64encode(str(imageContent).encode())
+    
     imageSize = eval(imageContent).get('size')
     print(eval(imageContent).get('name'))
     filename  = eval(imageContent).get('name')
@@ -100,18 +136,7 @@ def uploadImage():
         'name': filename
     }
     requests.post(memcache_pool_url + '/put', params=requestJson)
-    full_file_path = os.path.join(os_file_path, filename)
-    if os.path.isfile(full_file_path):
-        os.remove(full_file_path)
-    with open(full_file_path, 'wb') as fp:
-        fp.write(value)
-    s3client.upload_file(full_file_path, bucket_name, filename)
-    
-    # pending saving to rds
-    if db.readFileInfo(key) == None:
-        db.insertFileInfo(FILEINFO(key, filename, imageSize))
-    else:
-        db.updFileInfo(FILEINFO(key, filename, imageSize))
+    requests.post(manager_url + '/uploadToDB', params=requestJson)
     
     resp = OrderedDict([("success", "true"), ("key", key)])
     response = manager.response_class(
@@ -138,23 +163,11 @@ def upload_autotest():
     requestJson = {
         'key': key,
         'value': encodedImage, 
-        'size': imageSize
+        'size': imageSize,
+        'name': image.filename
     }
     requests.post(memcache_pool_url + '/put', params=requestJson)
-    value = encodedImage
-    filename  = image.filename
-    full_file_path = os.path.join(os_file_path, filename)
-    if os.path.isfile(full_file_path):
-        os.remove(full_file_path)
-    with open(full_file_path, 'wb') as fp:
-        fp.write(value)
-    s3client.upload_file(full_file_path, bucket_name, filename)
-    
-    # pending saving to rds
-    if db.readFileInfo(key) == None:
-        db.insertFileInfo(FILEINFO(key, filename, imageSize))
-    else:
-        db.updFileInfo(FILEINFO(key, filename, imageSize))
+    requests.post(manager_url + '/uploadToDB', params=requestJson)
 
     resp = OrderedDict([("success", "true"), ("key", key)])
     response = manager.response_class(
