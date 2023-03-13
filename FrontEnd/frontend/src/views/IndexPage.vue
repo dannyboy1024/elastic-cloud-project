@@ -74,16 +74,16 @@
                     </el-col>
                 </el-row>
             </el-tab-pane>
-            <el-tab-pane label="Keys in RDS" name="2" style="text-align: left; ">
-                &nbsp;&nbsp;&nbsp;key value:
+            <el-tab-pane label="Keys info" name="2" style="text-align: left; ">
+                &nbsp;&nbsp;&nbsp;keys in RDS :
                 &nbsp;&nbsp;&nbsp;
-                <el-tooltip class="item" effect="dark" content="delete all the keys" placement="right-start">
+                <!-- <el-tooltip class="item" effect="dark" content="delete all the keys" placement="right-start">
                     <el-popconfirm confirm-button-text='delete' cancel-button-text='cancel' icon="el-icon-info"
                         icon-color="red" title="Sure to delete?" @confirm="deleteKey('delete all keys', 2)">
                         <el-button slot="reference" icon="el-icon-delete" type="text"
                             style="margin-top: 7px;"></el-button>
                     </el-popconfirm>
-                </el-tooltip>
+                </el-tooltip> -->
                 <div id="keysTable">
                     <el-row v-for="(item, index) in keysList" :key="index">
                         <el-col :span="4" :offset="3">
@@ -96,6 +96,17 @@
                                     style="margin-top: 7px;"></el-button>
                             </el-popconfirm>
                         </el-col> -->
+                        <br><br>
+                    </el-row>
+                </div>
+                <br>
+                <div id="keysCacheTable">
+                    &nbsp;&nbsp;&nbsp;keys in Cache :
+                    &nbsp;&nbsp;&nbsp;
+                    <el-row v-for="(item, index) in keysCacheList" :key="index">
+                        <el-col :span="4" :offset="3">
+                            <p>{{ item }}</p>
+                        </el-col>
                         <br><br>
                     </el-row>
                 </div>
@@ -225,22 +236,22 @@ export default {
             },
             tableData: [],
             timer_10: null,
-            nodeNums: null
+            nodeNums: 1
         }
     },
-    created(){
+    created() {
         this.timer_10 = window.setInterval(() => {
             setTimeout(this.polling(), 0);
 
-        }, 10)
+        }, 10000)
     },
-    destroyed(){
+    destroyed() {
         window.clearInterval(this.timer_10);
     },
     methods: {
         polling() {
             axios
-                .get('/route/api/getNumNodes')
+                .post('/route/api/getNumNodes')
                 .then(res => {
                     if (res.data) {
                         console.log("retrieve node numbers:", res);
@@ -254,11 +265,13 @@ export default {
                     }
                 })
                 .catch(error => {
-                    this.$message.warning('Fail to get node numbers!');
+                    // this.$message.warning('Fail to get node numbers!');
                     console.error(error);
                 })
         },
         handleTabClick(tab) {
+            this.retrieveInfo.imageUrl = ''
+            this.retrieveInfo.showImage = false
             if (tab.index == 1) { //获取keys的配置
                 // const url = this.baseUrl + 'getKeys';
                 axios
@@ -266,11 +279,27 @@ export default {
                     .then(res => {
                         if (res.data) {
                             console.log("retrieve keys info:", res);
-                            this.keysList = res.data.keys;
+                            this.keysList = res.data;
                         }
                         else {
                             console.log("Fail to get keys!");
                             this.keysList = [];
+                        }
+                    })
+                    .catch(error => {
+                        this.$message.warning('Fail to get keys!');
+                        console.error(error);
+                    })
+                axios
+                    .post('/route/api/list_keys')
+                    .then(res => {
+                        if (res.data) {
+                            console.log("retrieve keys info:", res);
+                            this.keysCacheList = res.data.keys;
+                        }
+                        else {
+                            console.log("Fail to get keys!");
+                            this.keysCacheList = [];
                         }
                     })
                     .catch(error => {
@@ -378,10 +407,7 @@ export default {
                 // let url = '/api/key/' + this.retrieveInfo.key
                 axios({
                     method: 'POST',
-                    url: '/route/api/getImage',
-                    data: {
-                        'key': this.retrieveInfo.key
-                    }
+                    url: '/route/key/' + this.retrieveInfo.key
                 }).then(res => {
                     console.log('retrieve image info: ', res.data);
                     if (res.status == 200) {
@@ -391,7 +417,7 @@ export default {
                             this.retrieveInfo.showImage = false
                         }
                         else {
-                            let content = JSON.parse(JSON.parse(res.data).content)
+                            let content = eval('(' + res.data.content + ')')
                             this.retrieveInfo.imageUrl = content.url
                             this.retrieveInfo.showImage = true
                         }
@@ -403,6 +429,8 @@ export default {
                     }
                 }).catch(error => {
                     console.error(error);
+                    this.retrieveInfo.imageUrl = ''
+                    this.retrieveInfo.showImage = false
                 })
             }
         },
@@ -474,22 +502,7 @@ export default {
         //         })
         // },
         showCacheKeys() {
-            axios
-                .get('/route/api/list_keys')
-                .then(res => {
-                    if (res.data) {
-                        console.log("retrieve keys info:", res);
-                        this.keysCacheList = res.data;
-                    }
-                    else {
-                        console.log("Fail to get keys!");
-                        this.keysCacheList = [];
-                    }
-                })
-                .catch(error => {
-                    this.$message.warning('Fail to get keys!');
-                    console.error(error);
-                })
+
         }
     },
 };
