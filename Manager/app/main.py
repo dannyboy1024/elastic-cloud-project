@@ -609,7 +609,7 @@ def displayCharts():
 
     # get numActiveNodes list
     resp1 = cloudwatch.get_metric_statistics(
-        Period     = 1*60,
+        Period     = 1*5,
         StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
         EndTime    = datetime.utcnow(),
         MetricName = 'numActiveNodes',
@@ -618,6 +618,8 @@ def displayCharts():
         Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']        
     )
     sortedResp1 = sorted(resp1['Datapoints'], key=sort_by_timeStamp)
+    sortedResp1 = [''] + sortedResp1
+    sortedResp1 = sortedResp1[::12][1:]
     numActiveNodesList = [datapoint['Maximum'] for datapoint in sortedResp1]
 
     # get numTotalRequests list
@@ -648,7 +650,7 @@ def displayCharts():
 
     # get numItems list
     resp4 = cloudwatch.get_metric_statistics(
-        Period     = 1*60,
+        Period     = 1*5,
         StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
         EndTime    = datetime.utcnow(),
         MetricName = 'numItems',
@@ -657,11 +659,13 @@ def displayCharts():
         Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']      
     )
     sortedResp4 = sorted(resp4['Datapoints'], key=sort_by_timeStamp)
+    sortedResp4 = [''] + sortedResp4
+    sortedResp4 = sortedResp4[::12][1:]
     numItemsList = [datapoint['Maximum'] for datapoint in sortedResp4]
 
     # get totalSize list
     resp5 = cloudwatch.get_metric_statistics(
-        Period     = 1*60,
+        Period     = 1*5,
         StartTime  = datetime.utcnow() - timedelta(seconds=30*60),
         EndTime    = datetime.utcnow(),
         MetricName = 'totalSize',
@@ -670,6 +674,8 @@ def displayCharts():
         Statistics = ['Sum', 'Minimum', 'Maximum', 'Average', 'SampleCount']      
     )
     sortedResp5 = sorted(resp5['Datapoints'], key=sort_by_timeStamp)
+    sortedResp5 = [''] + sortedResp5
+    sortedResp5 = sortedResp5[::12][1:]
     totalSizeList = [datapoint['Maximum'] for datapoint in sortedResp5]
 
 
@@ -677,20 +683,16 @@ def displayCharts():
     hitRateList       = [ (numTotalRequestsList[i] - numMissRequestsList[i] / numTotalRequestsList[i]) if numTotalRequestsList[i]>0 else 0.0 for i in range(len(numTotalRequestsList))]
 
     # print('---------------------- resp1 ------------------------')
+    # for datapoint in sorted(resp1['Datapoints'], key=sort_by_timeStamp):
+    #     print(datapoint)
+    # print(len(resp1['Datapoints']))
+    # print('---------------------- sortedResp1 ------------------------')
     # for datapoint in sortedResp1:
     #     print(datapoint)
     # print(len(sortedResp1))
 
-    # print('---------------------- resp2 ------------------------')
-    # for datapoint in sortedResp2:
-    #     print(datapoint)
-    # print(len(sortedResp2))
-
     # Create a list to store the Plotly chart objects
     figs = []
-    # x = [datetime.now(pytz.timezone('America/Toronto'))]
-    # for i in range(29):
-    #     x.append(x[-1] - timedelta(seconds=60))
     x_data = [
         [datapoint['Timestamp'] for datapoint in sortedResp1],
         [datapoint['Timestamp'] for datapoint in sortedResp2],

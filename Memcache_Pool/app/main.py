@@ -41,7 +41,8 @@ def updCacheStatsToCloudWatch():
                 'MetricName': 'numActiveNodes',
                 'Timestamp': datetime.utcnow(),
                 'Unit': 'None',
-                'Value': numActiveNodes
+                'Value': numActiveNodes,
+                'StorageResolution': 1
             },
             {
                 'MetricName': 'numTotalRequests',
@@ -59,13 +60,15 @@ def updCacheStatsToCloudWatch():
                 'MetricName': 'numItems',
                 'Timestamp': datetime.utcnow(),
                 'Unit': 'None',
-                'Value': numItems
+                'Value': numItems,
+                'StorageResolution': 1
             },
             {
                 'MetricName': 'totalSize',
                 'Timestamp': datetime.utcnow(),
                 'Unit': 'None',
-                'Value': totalSize                
+                'Value': totalSize,
+                'StorageResolution': 1              
             }
         ]
     )
